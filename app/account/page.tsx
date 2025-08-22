@@ -24,7 +24,7 @@ export default function AccountPage() {
   const [language, setLanguage] = useState("Português(BR)")
   const [timezone, setTimezone] = useState("(UTC+03:00)")
   const [balance] = useState(10001.96)
-
+//as
   const SITE_CONFIG = {
     platformName: "TradePro",
     logoUrl: "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
