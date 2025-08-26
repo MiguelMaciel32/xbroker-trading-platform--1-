@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "bspay",
+      "source": "@bspay/v2#ezed1mm2tp2pvp",
+      "integrity": "sha512-4A/0RuVs1/QcMXwAFbgqCzF+iz8CqJI1lIE4GQU2UN0K9jdp4uMoPhaxLKgtvi/lU1dTotjoM9O21ciX6Y6bgw==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}

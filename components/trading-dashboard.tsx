@@ -1,15 +1,15 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Plus, Minus, Settings, BarChart3, Bell, User, CreditCard, ArrowUpDown } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { Toaster } from "@/components/ui/toaster"
 import { ResponsiveContainer, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Bar } from "recharts"
+import TradingHeader from "@/components/trading-header"
 
 const SITE_CONFIG = {
   platformName: "TradePro",
-  logoUrl: "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
+  logoUrl:
+    "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
   supportUrl: "#suporte",
   communityUrl: "#comunidade",
   colors: {
@@ -415,78 +415,10 @@ export default function TradingChart() {
 
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
-      <div
-        className="fixed top-0 left-0 right-0 z-50 border-b px-4 py-3"
-        style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <img src={SITE_CONFIG.logoUrl || "/placeholder.svg"} alt={SITE_CONFIG.platformName} className="h-8" />
-          </div>
-          <div className="flex items-center space-x-4">
-            <Bell className="w-5 h-5 text-gray-400" />
-            <div className="flex items-center space-x-3">
-              <div className="text-right">
-                <div className="text-gray-400 text-sm">Saldo demo</div>
-                <div className="text-white font-semibold">R$ {balance.toFixed(2)}</div>
-              </div>
-              <Button
-                style={{ backgroundColor: "#FCD535", color: "#000000" }}
-                className="bg-green-500 hover:bg-green-600 text-black font-semibold px-4"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Depósito
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TradingHeader balance={balance} />
 
       <div className="flex pt-[70px] h-screen">
-        <div
-          className="w-16 border-r flex flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20"
-          style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
-        >
-          <Link
-            href="/trading"
-            className="flex flex-col items-center space-y-1 p-3 rounded-lg transition-colors"
-            style={{ backgroundColor: "#FCD535", color: "#000" }}
-          >
-            <BarChart3 className="h-6 w-6" />
-          </Link>
-
-          <Link
-            href="/deposit"
-            className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-          >
-            <CreditCard className="h-6 w-6 text-gray-400" />
-          </Link>
-
-          <Link
-            href="/saque"
-            className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-          >
-            <ArrowUpDown className="h-6 w-6 text-gray-400" />
-          </Link>
-
-          <div className="flex-1"></div>
-
-          <Link
-            href="/configuracoes"
-            className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-          >
-            <Settings className="h-6 w-6 text-gray-400" />
-          </Link>
-
-          <Link
-            href="/account"
-            className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-          >
-            <User className="h-6 w-6 text-gray-400" />
-          </Link>
-        </div>
-
-        <div className="flex-1 ml-16 relative" style={{ backgroundColor: "#181A20" }}>
+        <div className="flex-1 relative" style={{ backgroundColor: "#181A20" }}>
           <div className="w-full h-full relative">
             {!isLoading && candlestickData.length > 0 ? (
               <CandlestickChart data={candlestickData} />
@@ -610,8 +542,6 @@ export default function TradingChart() {
           </div>
         </div>
       </div>
-
-      <Toaster />
     </div>
   )
 }

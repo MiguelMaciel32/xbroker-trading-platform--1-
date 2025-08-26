@@ -1,10 +1,20 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
+
+interface PlatformConfig {
+  platform_name: string
+  platform_logo: string
+}
+
+interface PlatformConfigRow {
+  key: string
+  value: string
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -12,7 +22,45 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [step, setStep] = useState<"email" | "password">("email")
+  const [platformConfig, setPlatformConfig] = useState<PlatformConfig>({
+    platform_name: "Trading Platform",
+    platform_logo:
+      "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
+  })
   const router = useRouter()
+
+  useEffect(() => {
+    const fetchPlatformConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("platform_config")
+          .select("key, value")
+          .in("key", ["platform_name", "platform_logo"])
+
+        if (error) {
+          console.error("Error fetching platform config:", error)
+          return
+        }
+
+        const config: Record<string, string> = {}
+        data?.forEach((item) => {
+          const configItem = item as PlatformConfigRow
+          config[configItem.key] = configItem.value
+        })
+
+        setPlatformConfig({
+          platform_name: config.platform_name || "Trading Platform",
+          platform_logo:
+            config.platform_logo ||
+            "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
+        })
+      } catch (err) {
+        console.error("Error fetching platform config:", err)
+      }
+    }
+
+    fetchPlatformConfig()
+  }, [])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -138,7 +186,12 @@ export default function LoginPage() {
             >
               <div className="text-center mb-8">
                 <div className="flex items-center justify-center mb-8">
-                  <img src="https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990" width={60} height={60} alt="" />
+                  <img
+                    src={platformConfig.platform_logo || "/placeholder.svg"}
+                    width={60}
+                    height={60}
+                    alt={platformConfig.platform_name}
+                  />
                 </div>
               </div>
 
@@ -150,15 +203,9 @@ export default function LoginPage() {
                   className="h-10 w-10 flex items-center justify-center rounded-lg cursor-pointer hover:bg-[var(--color-Input)]"
                   style={{ backgroundColor: "var(--color-Vessel)" }}
                 >
-                  <svg
-                    color="white"
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
+                  <svg color="white" width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path
-                      d="M10.077 12.576c.743 0 1.347.604 1.347 1.347v6.73c0 .744-.604 1.347-1.347 1.347h-6.73A1.347 1.347 0 012 20.654v-6.731c0-.743.603-1.347 1.346-1.347h6.731zm4.807 6.635c.233 0 .427.165.472.384l.01.097v1.683a.481.481 0 01-.385.471l-.097.01h-1.682a.481.481 0 01-.472-.385l-.009-.096v-1.683a.48.48 0 01.48-.48h1.683zm4.327-2.163a.48.48 0 01.481.48v1.683h1.683a.48.48 0 01.48.481v1.683a.48.48 0 01-.48.48h-3.846a.481.481 0 01-.472-.384l-.01-.096v-3.846a.48.48 0 01.482-.481h1.682zm-15.48 3.22h5.961v-5.96h-5.96v5.96zm3.942-4.422a.48.48 0 01.481.48v1.924a.48.48 0 01-.48.48H5.75a.48.48 0 01-.48-.48v-1.923a.48.48 0 01.48-.481h1.923zm9.375-3.125a.48.48 0 01.48.48v1.683a.48.48 0 01-.48.481h-1.683v1.683a.48.48 0 01-.48.48h-1.683a.481.481 0 01-.472-.383l-.009-.097v-3.846a.48.48 0 01.48-.48h3.847zm4.327 0c.232 0 .426.165.471.384l.01.097v1.682a.481.481 0 01-.385.472l-.096.01h-1.683a.481.481 0 01-.471-.385l-.01-.097v-1.682a.48.48 0 01.481-.48h1.683zM10.077 2c.743 0 1.347.603 1.347 1.346v6.731c0 .743-.604 1.347-1.347 1.347h-6.73A1.347 1.347 0 012 10.077v-6.73C2 2.602 2.603 2 3.346 2h6.731zm10.577 0C21.396 2 22 2.603 22 3.346v6.731c0 .743-.603 1.347-1.346 1.347h-6.731a1.347 1.347 0 01-1.347-1.347v-6.73c0-.744.604-1.347 1.347-1.347h6.73zM3.73 9.692h5.961v-5.96h-5.96v5.96zm10.577 0h5.96v-5.96h-5.96v5.96zM7.673 5.269a.48.48 0 01.481.481v1.923a.48.48 0 01-.48.481H5.75a.48.48 0 01-.48-.48V5.75a.48.48 0 01.48-.48h1.923zm10.577 0a.48.48 0 01.48.481v1.923a.48.48 0 01-.48.481h-1.923a.48.48 0 01-.481-.48V5.75a.48.48 0 01.48-.48h1.924z"
+                      d="M10.077 12.576c.743 0 1.347.604 1.347 1.347v6.73c0 .744-.604 1.347-1.347 1.347h-6.73A1.347 1.347 0 012 20.654v-6.731c0-.743.603-1.347 1.346-1.347h6.731zm4.807 6.635c.233 0 .427.165.472.384l.01.097v1.683a.481.481 0 01-.385.471l-.097.01h-1.682a.481.481 0 01-.472-.385l-.009-.096v-1.683a.48.48 0 01.48-.48h1.683zm4.327-2.163a.48.48 0 01.481.48v1.683h1.683a.48.48 0 01.48.481v1.683a.48.48 0 01-.48.48h-3.846a.481.481 0 01-.472-.384l-.01-.096v-3.846a.48.48 0 01.482-.481h1.682zm-15.48 3.22h5.961v-5.96h-5.96v5.96zm3.942-4.422a.48.48 0 01.481.48v1.924a.48.48 0 01-.48.48H5.75a.48.48 0 01-.48-.48v-1.923a.48.48 0 01.48-.481h1.683zm9.375-3.125a.48.48 0 01.48.48v1.683a.48.48 0 01-.48.481h-1.683v1.683a.48.48 0 01-.48.48h-1.683a.481.481 0 01-.472-.383l-.009-.097v-3.846a.48.48 0 01.48-.48h3.847zm4.327 0c.232 0 .426.165.471.384l.01.097v1.682a.481.481 0 01-.385.472l-.096.01h-1.683a.481.481 0 01-.471-.385l-.01-.097v-1.682a.48.48 0 01.481-.48h1.683zM10.077 2c.743 0 1.347.603 1.347 1.346v6.731c0 .743-.604 1.347-1.347 1.347h-6.73A1.347 1.347 0 012 10.077v-6.73C2 2.602 2.603 2 3.346 2h6.731zm10.577 0C21.396 2 22 2.603 22 3.346v6.731c0 .743-.603 1.347-1.346 1.347h-6.731a1.347 1.347 0 01-1.347-1.347v-6.73c0-.744.604-1.347 1.347-1.347h6.73zM3.73 9.692h5.961v-5.96h-5.96v5.96zm10.577 0h5.96v-5.96h-5.96v5.96zM7.673 5.269a.48.48 0 01.481.481v1.923a.48.48 0 01-.48.481H5.75a.48.48 0 01-.48-.48V5.75a.48.48 0 01.48-.48h1.923zm10.577 0a.48.48 0 01.48.481v1.923a.48.48 0 01-.48.481h-1.923a.48.48 0 01-.481-.48V5.75a.48.48 0 01.48-.48h1.924z"
                       fill="currentColor"
                     />
                   </svg>
@@ -182,7 +229,6 @@ export default function LoginPage() {
                           backgroundColor: "var(--color-Input)",
                           color: "var(--color-PrimaryText)",
                           borderColor: "var(--color-InputLine)",
-                        
                         }}
                         required
                       />
@@ -268,7 +314,6 @@ export default function LoginPage() {
                   </div>
 
                   <div className="space-y-3">
-                 
                     <button
                       type="button"
                       className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border transition-colors"
@@ -300,24 +345,22 @@ export default function LoginPage() {
                       Continue com o Google
                     </button>
                   </div>
-
-              
                 </>
               )}
             </div>
             <div className="mt-6"></div>
-             <Link
-                      href="/register"
-                      className="text-sm ml-24  hover:opacity-80 transition-opacity"
-                      style={{ color: "var(--color-TextLink)" }}
-                    >
-                      Criar uma Conta Binance
-                    </Link>
+            <Link
+              href="/register"
+              className="text-sm ml-24 hover:opacity-80 transition-opacity"
+              style={{ color: "var(--color-TextLink)" }}
+            >
+              Criar uma Conta {platformConfig.platform_name}
+            </Link>
           </div>
         </main>
       </div>
 
-      <footer className="flex flex-col items-center pb-8 f">
+      <footer className="flex flex-col items-center pb-8">
         <div className="flex items-center justify-center gap-6 text-sm" style={{ color: "var(--color-SecondaryText)" }}>
           <button className="flex items-center gap-1 hover:opacity-80 transition-opacity">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
