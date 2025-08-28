@@ -431,7 +431,7 @@ export default function TradingChart() {
       <div className="flex flex-col min-h-screen w-full">
         <div className="flex-1 w-full">
           <div
-            className="w-full h-[calc(100vh-70px-140px)] lg:h-[calc(100vh-70px)] flex items-center justify-center"
+            className="w-full h-[calc(100vh-70px-200px)] lg:h-[calc(100vh-70px)] flex items-center justify-center"
             style={{ backgroundColor: "#181A20" }}
           >
             <div className="w-full h-full relative">
@@ -448,119 +448,121 @@ export default function TradingChart() {
           </div>
         </div>
 
-        <div className="lg:hidden bg-[#1E2329] border-t border-[#2B3139] h-[140px] overflow-y-auto w-full fixed bottom-0 left-0 right-0 z-40">
-          <div className="p-4 space-y-4 w-full">
-            {/* Asset Selection */}
-            <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-              <div className="text-gray-400 text-xs mb-2">Ativo</div>
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-between text-white hover:bg-[#2B3139] p-3 border border-[#2B3139] bg-[#1E2329] text-sm"
-                  onClick={() => setShowAssetSelector(!showAssetSelector)}
-                >
-                  <div className="text-left">
-                    <div className="font-semibold text-sm text-white">{selectedAsset.name}</div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="text-[#FCD535] font-bold text-xs">{selectedAsset.payout}%</div>
-                    <ChevronDown
-                      className={`h-4 w-4 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
-                    />
-                  </div>
-                </Button>
-                {showAssetSelector && (
-                  <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
-                    <div
-                      className="border border-[#2B3139] shadow-lg max-h-32 overflow-y-auto rounded"
-                      style={{ backgroundColor: "#1E2329" }}
-                    >
-                      {OTC_ASSETS.map((asset) => (
-                        <Button
-                          key={asset.symbol}
-                          variant="ghost"
-                          className={`w-full justify-between text-white p-3 text-sm transition-all duration-150 border-0 ${
-                            selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
-                          }`}
-                          onClick={() => handleAssetChange(asset)}
-                        >
-                          <span className="font-semibold text-white">{asset.name}</span>
-                          <span className="text-[#FCD535] font-bold text-xs">{asset.payout}%</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Trade Amount and Return */}
-            <div className="flex gap-3 w-full">
-              <div className="flex-1 rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-2">Valor</div>
-                <div className="flex items-center justify-between bg-gray-800 rounded p-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-gray-600 rounded-full w-7 h-7 p-0"
-                    onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="text-white font-semibold text-sm">R$ {tradeAmount.toFixed(2)}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-gray-600 rounded-full w-7 h-7 p-0"
-                    onClick={() => setTradeAmount(tradeAmount + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 text-center py-3 rounded w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-1">Retorno</div>
-                <div className="text-[#FCD535] font-bold text-sm">
-                  R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 sticky bottom-0 bg-[#1E2329] pt-2 pb-2 w-full">
-              <Button
-                onClick={() => executeTrade("up")}
-                disabled={currentBalance < tradeAmount}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg"
-              >
-                <TrendingUp className="h-5 w-5 mr-2" />
-                SUBIR
-              </Button>
-              <Button
-                onClick={() => executeTrade("down")}
-                disabled={currentBalance < tradeAmount}
-                className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg"
-              >
-                <TrendingDown className="h-5 w-5 mr-2" />
-                DESCER
-              </Button>
-            </div>
-
-            {/* Active Trades */}
-            {activeTrades.length > 0 && (
+        <div className="lg:hidden bg-[#1E2329] border-t border-[#2B3139] h-[200px] fixed bottom-0 left-0 right-0 z-40 flex flex-col">
+          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarWidth: "thin" }}>
+            <div className="p-4 space-y-3 w-full min-h-full">
               <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-2">Posições Ativas ({activeTrades.length})</div>
-                <div className="space-y-2 max-h-24 overflow-y-auto">
-                  {activeTrades.map((trade) => (
-                    <div key={trade.id} className="flex justify-between items-center text-xs p-2 bg-gray-800 rounded">
-                      <span className="text-white">{trade.asset}</span>
-                      <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
-                        {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
-                      </span>
+                <div className="text-gray-400 text-xs mb-2">Ativo</div>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between text-white hover:bg-[#2B3139] p-3 border border-[#2B3139] bg-[#1E2329] text-sm min-h-[48px]"
+                    onClick={() => setShowAssetSelector(!showAssetSelector)}
+                  >
+                    <div className="text-left">
+                      <div className="font-semibold text-sm text-white">{selectedAsset.name}</div>
                     </div>
-                  ))}
+                    <div className="flex items-center space-x-2">
+                      <div className="text-[#FCD535] font-bold text-xs">{selectedAsset.payout}%</div>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
+                      />
+                    </div>
+                  </Button>
+                  {showAssetSelector && (
+                    <div className="absolute bottom-full left-0 right-0 z-50 mb-1 max-h-[120px]">
+                      <div
+                        className="border border-[#2B3139] shadow-lg overflow-y-auto rounded"
+                        style={{ backgroundColor: "#1E2329" }}
+                      >
+                        {OTC_ASSETS.map((asset) => (
+                          <Button
+                            key={asset.symbol}
+                            variant="ghost"
+                            className={`w-full justify-between text-white p-3 text-sm transition-all duration-150 border-0 min-h-[44px] ${
+                              selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
+                            }`}
+                            onClick={() => handleAssetChange(asset)}
+                          >
+                            <span className="font-semibold text-white">{asset.name}</span>
+                            <span className="text-[#FCD535] font-bold text-xs">{asset.payout}%</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+
+              <div className="flex gap-3 w-full">
+                <div className="flex-1 rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
+                  <div className="text-gray-400 text-xs mb-2">Valor</div>
+                  <div className="flex items-center justify-between bg-gray-800 rounded p-2 min-h-[40px]">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0 touch-manipulation"
+                      onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-white font-semibold text-sm">R$ {tradeAmount.toFixed(2)}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0 touch-manipulation"
+                      onClick={() => setTradeAmount(tradeAmount + 1)}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 text-center py-3 rounded w-full" style={{ backgroundColor: "#181A20" }}>
+                  <div className="text-gray-400 text-xs mb-1">Retorno</div>
+                  <div className="text-[#FCD535] font-bold text-sm">
+                    R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              {activeTrades.length > 0 && (
+                <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
+                  <div className="text-gray-400 text-xs mb-2">Posições Ativas ({activeTrades.length})</div>
+                  <div className="space-y-2 max-h-16 overflow-y-auto">
+                    {activeTrades.map((trade) => (
+                      <div
+                        key={trade.id}
+                        className="flex justify-between items-center text-xs p-2 bg-gray-800 rounded min-h-[32px]"
+                      >
+                        <span className="text-white">{trade.asset}</span>
+                        <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
+                          {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 p-4 bg-[#1E2329] border-t border-[#2B3139] w-full">
+            <Button
+              onClick={() => executeTrade("up")}
+              disabled={currentBalance < tradeAmount}
+              className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg min-h-[52px] touch-manipulation"
+            >
+              <TrendingUp className="h-5 w-5 mr-2" />
+              SUBIR
+            </Button>
+            <Button
+              onClick={() => executeTrade("down")}
+              disabled={currentBalance < tradeAmount}
+              className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg min-h-[52px] touch-manipulation"
+            >
+              <TrendingDown className="h-5 w-5 mr-2" />
+              DESCER
+            </Button>
           </div>
         </div>
 
