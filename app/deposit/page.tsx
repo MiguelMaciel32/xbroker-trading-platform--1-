@@ -6,6 +6,41 @@ import { CreditCard, ArrowUpDown, User } from "lucide-react"
 import { ExternalLink, Plus, Bell, Settings, BarChart3, Menu, X } from "lucide-react"
 import { useState } from "react"
 
+class PixupBRService {
+  static async createPixPayment(data: {
+    amount: number;
+    external_id: string;
+    payerQuestion?: string;
+    postbackUrl?: string;
+    payer?: {
+      name?: string;
+      document?: string;
+      email?: string;
+    };
+  }) {
+    try {
+      const response = await fetch('/api/pixupbr/qrcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar pagamento PIX');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('Erro ao criar pagamento PIX:', error);
+      throw error;
+    }
+  }
+}
+
 export default function DepositPage() {
   const [selectedCurrency, setSelectedCurrency] = useState("BRL")
   const [selectedMethod, setSelectedMethod] = useState("pix")
@@ -14,6 +49,10 @@ export default function DepositPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [depositAmount, setDepositAmount] = useState("")
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pixKey, setPixKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const name = "Nome do seu site"
   const [pixCode] = useState(
     "00020126580014br.gov.bcb.pix013605332e35-0114-4915-bbd2-768536686de2520400005303986540512.005802BR5925GOWD INSTITUICAO DE PAGAM6007MARINGA62290525Widc1h0crc0000015ggyUzPA563047628",
@@ -23,6 +62,8 @@ export default function DepositPage() {
     platformName: "TradePro",
     logoUrl: "/placeholder.svg?height=32&width=120&text=TradePro",
   }
+
+  
 
   const handleContinue = () => {
     if (currentStep === 1 && agreedToTerms) {
@@ -49,6 +90,63 @@ export default function DepositPage() {
       console.error("Failed to copy PIX code:", err)
     }
   }
+
+    const handleCreatePayment = async () => {
+    setLoading(true);
+    setError(null);
+    setQrCode(null);
+    setPixKey(null);
+    
+    try {
+      const payment = await PixupBRService.createPixPayment({
+        amount: 1, 
+        external_id: `pedido_${Date.now()}`,
+        payerQuestion: 'Pagamento do pedido de teste',
+        postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
+        payer: {
+          name: 'João Silva',
+          document: '12345678901',
+          email: 'joao@email.com'
+        }
+      });
+
+      console.log('Resposta completa do pagamento:', payment);
+
+      if (currentStep === 1 && agreedToTerms) {
+      setCurrentStep(2)
+    } else if (currentStep === 2 && isAmountValid()) {
+      setCurrentStep(3)
+    }
+
+      // A resposta da PixupBR tem esta estrutura:
+      // qrcode: string do código PIX (para copiar/colar)
+      // Para gerar QR Code visual, precisamos converter essa string
+      const qrCodeString = payment.qrcode;
+      const pixKeyValue = payment.qrcode; // A string do QR code também serve como chave PIX
+      
+      console.log('QR Code string:', qrCodeString);
+      console.log('Transaction ID:', payment.transactionId);
+      console.log('Status:', payment.status);
+      
+      // Gerar URL do QR Code usando um serviço online
+      const qrCodeImageUrl = qrCodeString ? 
+        `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}` 
+        : null;
+      
+      setQrCode(qrCodeImageUrl);
+      setPixKey(qrCodeString);
+
+      if (!qrCodeImageUrl && !qrCodeString) {
+        setError('QR Code não encontrado na resposta da API');
+      }
+      
+    } catch (error: any) {
+      console.error('Erro:', error);
+      setError(error.message || 'Erro ao criar pagamento PIX');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
@@ -302,7 +400,7 @@ export default function DepositPage() {
                       </div>
 
                       <button
-                        onClick={handleContinue}
+                        onClick={handleCreatePayment}
                         disabled={!isAmountValid()}
                         className={`w-full mt-6 py-3 px-4 font-medium text-black ${
                           isAmountValid()
@@ -327,7 +425,7 @@ export default function DepositPage() {
                       <div className="flex justify-center mb-6">
                         <div className="w-48 h-48 bg-white p-4 flex items-center justify-center">
                           <img
-                            src="/placeholder.svg?height=180&width=180&text=QR+Code"
+                            src={qrCode || "https://via.placeholder.com/200?text=QR+Code"}
                             alt="QR Code PIX"
                             className="w-full h-full"
                           />
@@ -340,7 +438,7 @@ export default function DepositPage() {
                           <div className="flex">
                             <input
                               type="text"
-                              value={pixCode}
+                              value={pixKey || "Carregando..."}
                               readOnly
                               className="flex-1 px-3 py-2 bg-[#2B3139] border border-[#2B3139] text-white text-xs"
                             />
