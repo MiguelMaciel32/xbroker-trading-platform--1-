@@ -14,17 +14,18 @@ export default function ClientLayout({
   const pathname = usePathname()
   const isLoginPage = pathname === "/login"
   const isRegister = pathname === "/register"
-  const landpage = pathname === "/"
+  
 
   return (
     <>
-      {!isLoginPage || isRegister || landpage &&   (
-        <>
-          <TradingHeader balance={12500.0} />
-          <TradingSidebar />
-        </>
-      )}
-      <main className={!isLoginPage  ? "lg:ml-16 pt-16" : ""}>{children}</main>
+     {!(isLoginPage || isRegister) && (
+  <>
+    <TradingHeader balance={12500.0} />
+    <TradingSidebar />
+  </>
+)}
+
+      <main className={!isLoginPage ? "lg:ml-16 pt-16" : ""}>{children}</main>
 
       <Toaster />
     </>
