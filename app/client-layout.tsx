@@ -22,7 +22,8 @@ export default function ClientLayout({
           <TradingSidebar />
         </>
       )}
-      <main className={!isLoginPage ? "ml-16 pt-16" : ""}>{children}</main>
+      <main className={!isLoginPage ? "lg:ml-16 pt-16" : ""}>{children}</main>
+
       <Toaster />
     </>
   )

@@ -219,7 +219,7 @@ export default function DepositPage() {
                             <div className="w-2 h-2 bg-[#FCD535] rounded-full"></div>
                           </div>
                           <img
-                            src="https://logoeps.com/wp-content/uploads/2022/12/pix-vector-logo.png"
+                            src="https://ngzbprsxlhoprawybxji.supabase.co/storage/v1/object/public/ate/pix.png"
                             alt="PIX"
                             className="w-8 h-8"
                           />

@@ -34,26 +34,18 @@ export default function TradingSidebar() {
 
   const isActive = (path: string) => pathname === path
 
-  const getActiveStyles = (path: string) => {
-    if (isActive(path)) {
-      return {
-        backgroundColor: "#FCD535",
-        color: "#000",
-      }
-    }
-    return {}
-  }
+  const getActiveStyles = (path: string) => (isActive(path) ? { backgroundColor: "#FCD535", color: "#000" } : {})
 
-  const getIconColor = (path: string) => {
-    if (isActive(path)) {
-      return "#000"
-    }
-    return "text-gray-400 hover:text-[#FCD535]"
-  }
+  const getIconColor = (path: string) => (isActive(path) ? "#000" : "text-gray-400 hover:text-[#FCD535]")
+
+  const getMobileIconColor = (path: string) => (isActive(path) ? "text-[#FCD535]" : "text-gray-400")
+
+  const getMobileBackgroundColor = (path: string) =>
+    isActive(path) ? "bg-[#FCD535]/20 shadow-lg shadow-[#FCD535]/30" : "hover:bg-white/10"
 
   return (
     <>
-      {/* Desktop Sidebar - Hidden on mobile using CSS only */}
+      {/* Sidebar Desktop */}
       <div
         className="hidden lg:flex w-16 border-r flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20"
         style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
@@ -97,7 +89,7 @@ export default function TradingSidebar() {
           </a>
         )}
 
-        <div className="flex-1"></div>
+        <div className="flex-1" />
 
         {config.support_link && (
           <a
@@ -130,11 +122,11 @@ export default function TradingSidebar() {
         </Link>
       </div>
 
-      {/* Mobile Bottom Navigation - Visible only on mobile using CSS */}
+      {/* Menu Mobile (fixo no rodapé) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[100]">
         <div className="relative">
-          {/* Central floating button */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 -top-5 z-10">
+          {/* Botão central flutuante (acima da barra) */}
+          <div className="absolute left-1/2 -translate-x-1/2 -top-6 z-[120]">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#FCD535] animate-ping opacity-20"></div>
               <div className="absolute inset-0 rounded-full bg-[#FCD535] animate-ping opacity-10 animation-delay-300"></div>
@@ -145,43 +137,55 @@ export default function TradingSidebar() {
             </div>
           </div>
 
-          {/* Bottom navigation bar */}
-          <div className="bg-[#1E2329] backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50 rounded-[2.5rem] mb-2 mx-4">
+          {/* Barra inferior */}
+          <div className="relative z-[110] overflow-visible bg-[#1E2329] backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50 rounded-[2.5rem] mb-2 mx-4">
             <div className="flex items-center justify-around px-4 py-2">
               {/* Gráficos */}
-              <button className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95">
-                <div className="p-1 rounded-lg transition-all duration-300 bg-[#FCD535]/20 shadow-lg shadow-[#FCD535]/30">
-                  <BarChart3 className="w-5 h-5 text-[#FCD535]" />
+              <Link
+                href="/trading"
+                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
+              >
+                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/trading")}`}>
+                  <BarChart3 className={`w-5 h-5 ${getMobileIconColor("/trading")}`} />
                 </div>
-                <span className="text-[9px] font-medium text-[#FCD535]">Gráficos</span>
-              </button>
+                <span className={`text-[9px] font-medium ${getMobileIconColor("/trading")}`}>Gráficos</span>
+              </Link>
 
               {/* Depósito */}
-              <button className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95">
-                <div className="p-1 rounded-lg transition-all duration-300 hover:bg-white/10">
-                  <CreditCard className="w-5 h-5 text-gray-400" />
+              <Link
+                href="/deposit"
+                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
+              >
+                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/deposit")}`}>
+                  <CreditCard className={`w-5 h-5 ${getMobileIconColor("/deposit")}`} />
                 </div>
-                <span className="text-[9px] font-medium text-gray-400">Depósito</span>
-              </button>
+                <span className={`text-[9px] font-medium ${getMobileIconColor("/deposit")}`}>Depósito</span>
+              </Link>
 
-              {/* Space for central button */}
-              <div className="w-12"></div>
+              {/* Espaço para o botão central */}
+              <div className="w-12" />
 
               {/* Saque */}
-              <button className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95">
-                <div className="p-1 rounded-lg transition-all duration-300 hover:bg-white/10">
-                  <ArrowUpDown className="w-5 h-5 text-gray-400" />
+              <Link
+                href="/saque"
+                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
+              >
+                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/saque")}`}>
+                  <ArrowUpDown className={`w-5 h-5 ${getMobileIconColor("/saque")}`} />
                 </div>
-                <span className="text-[9px] font-medium text-gray-400">Saque</span>
-              </button>
+                <span className={`text-[9px] font-medium ${getMobileIconColor("/saque")}`}>Saque</span>
+              </Link>
 
               {/* Histórico */}
-              <button className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95">
-                <div className="p-1 rounded-lg transition-all duration-300 hover:bg-white/10">
-                  <History className="w-5 h-5 text-gray-400" />
+              <Link
+                href="/historico"
+                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
+              >
+                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/historico")}`}>
+                  <History className={`w-5 h-5 ${getMobileIconColor("/historico")}`} />
                 </div>
-                <span className="text-[9px] font-medium text-gray-400">Histórico</span>
-              </button>
+                <span className={`text-[9px] font-medium ${getMobileIconColor("/historico")}`}>Histórico</span>
+              </Link>
             </div>
           </div>
         </div>
