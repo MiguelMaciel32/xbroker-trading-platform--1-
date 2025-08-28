@@ -63,8 +63,6 @@ export default function DepositPage() {
     logoUrl: "/placeholder.svg?height=32&width=120&text=TradePro",
   }
 
-  
-
   const handleContinue = () => {
     if (currentStep === 1 && agreedToTerms) {
       setCurrentStep(2)
@@ -91,17 +89,25 @@ export default function DepositPage() {
     }
   }
 
-    const handleCreatePayment = async () => {
+  const handleCreatePayment = async () => {
     setLoading(true);
     setError(null);
     setQrCode(null);
     setPixKey(null);
     
     try {
+      // Converte o valor para número, trocando vírgula por ponto se necessário
+      const amountValue = Number.parseFloat(depositAmount.replace(",", "."));
+      
+      // Validação adicional do valor
+      if (!amountValue || amountValue < 100 || amountValue > 54690) {
+        throw new Error('Valor inválido. O valor deve estar entre R$ 100,00 e R$ 54.690,00');
+      }
+
       const payment = await PixupBRService.createPixPayment({
-        amount: 1, 
+        amount: amountValue, // Agora usa o valor dinâmico do formulário
         external_id: `pedido_${Date.now()}`,
-        payerQuestion: 'Pagamento do pedido de teste',
+        payerQuestion: `Depósito de R$ ${depositAmount}`,
         postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
         payer: {
           name: 'João Silva',
@@ -112,11 +118,12 @@ export default function DepositPage() {
 
       console.log('Resposta completa do pagamento:', payment);
 
+      // Avança para o próximo step se a validação passou
       if (currentStep === 1 && agreedToTerms) {
-      setCurrentStep(2)
-    } else if (currentStep === 2 && isAmountValid()) {
-      setCurrentStep(3)
-    }
+        setCurrentStep(2)
+      } else if (currentStep === 2 && isAmountValid()) {
+        setCurrentStep(3)
+      }
 
       // A resposta da PixupBR tem esta estrutura:
       // qrcode: string do código PIX (para copiar/colar)
@@ -127,6 +134,7 @@ export default function DepositPage() {
       console.log('QR Code string:', qrCodeString);
       console.log('Transaction ID:', payment.transactionId);
       console.log('Status:', payment.status);
+      console.log('Amount:', amountValue); // Log do valor usado
       
       // Gerar URL do QR Code usando um serviço online
       const qrCodeImageUrl = qrCodeString ? 
@@ -307,6 +315,18 @@ export default function DepositPage() {
                     {currentStep === 3 ? "Depositar" : "Depósito BRL"}
                   </h1>
 
+                  {loading && (
+                    <div className="bg-[#1E2329] p-6 mb-6 text-center">
+                      <div className="text-white">Gerando QR Code...</div>
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="bg-red-600 p-4 mb-6 text-white">
+                      {error}
+                    </div>
+                  )}
+
                   {currentStep === 1 && (
                     <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6 mb-6">
                       <h2 className="text-lg font-medium text-white mb-4">Selecione o método de pagamento</h2>
@@ -387,7 +407,7 @@ export default function DepositPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
-                          {["100", "500", "1000"].map((amount) => (
+                          {["100", "500", "900"].map((amount) => (
                             <button
                               key={amount}
                               onClick={() => setDepositAmount(amount)}
@@ -401,14 +421,14 @@ export default function DepositPage() {
 
                       <button
                         onClick={handleCreatePayment}
-                        disabled={!isAmountValid()}
+                        disabled={!isAmountValid() || loading}
                         className={`w-full mt-6 py-3 px-4 font-medium text-black ${
-                          isAmountValid()
+                          isAmountValid() && !loading
                             ? "bg-[#FCD535] hover:bg-[#E5C02F]"
                             : "bg-[#2B3139] text-[#848E9C] cursor-not-allowed"
                         } transition-colors`}
                       >
-                        Continuar
+                        {loading ? 'Processando...' : 'Continuar'}
                       </button>
                     </div>
                   )}
@@ -468,6 +488,9 @@ export default function DepositPage() {
                           setCurrentStep(1)
                           setDepositAmount("")
                           setAgreedToTerms(false)
+                          setQrCode(null)
+                          setPixKey(null)
+                          setError(null)
                         }}
                         className="w-full mt-6 py-3 px-4 bg-[#2B3139] text-white hover:bg-[#3B4149] transition-colors font-medium"
                       >

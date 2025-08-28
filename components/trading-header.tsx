@@ -66,7 +66,7 @@ export default function TradingHeader({
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 border-b px-2 sm:px-4 py-2 sm:py-3"
+      className="fixed top-0 left-0 right-0 z-50 border-b "
       style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
     >
       <div className="flex items-center justify-between">
