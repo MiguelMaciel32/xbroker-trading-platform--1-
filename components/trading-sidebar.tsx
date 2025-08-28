@@ -12,7 +12,7 @@ import {
   Users,
   HelpCircle,
   TrendingUp,
-  History,
+  PhoneCall
 } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
 
@@ -176,15 +176,15 @@ export default function TradingSidebar() {
                 <span className={`text-[9px] font-medium ${getMobileIconColor("/saque")}`}>Saque</span>
               </Link>
 
-              {/* Histórico */}
+      
               <Link
-                href="/historico"
+                           href={config.support_link || "/Suporte"}
                 className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
               >
-                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/historico")}`}>
-                  <History className={`w-5 h-5 ${getMobileIconColor("/historico")}`} />
+                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/Suporte")}`}>
+                  <PhoneCall className={`w-5 h-5 ${getMobileIconColor("/Suporte")}`} />
                 </div>
-                <span className={`text-[9px] font-medium ${getMobileIconColor("/historico")}`}>Histórico</span>
+                <span className={`text-[9px] font-medium ${getMobileIconColor("/Suporte")}`}>Suporte</span>
               </Link>
             </div>
           </div>
