@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, Bell, ChevronDown } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
+import Link from "next/link"
 
 interface TradingHeaderProps {
   balance: number
@@ -96,14 +97,16 @@ export default function TradingHeader({ balance }: TradingHeaderProps) {
                 </div>
               )}
             </div>
-          
+          <Link href="/deposit">
             <Button
+            
               style={{ backgroundColor: "#FCD535", color: "#000000" }}
               className="bg-green-500 hover:bg-green-600 text-black font-semibold px-4"
             >
               <Plus className="w-4 h-4 mr-1" />
               Depósito
             </Button>
+            </Link>
           </div>
         </div>
       </div>

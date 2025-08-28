@@ -8,10 +8,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getPlatformConfig, updatePlatformConfig } from "@/lib/platform-config"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, Settings, Users, Palette, Upload, Check, Eye } from "lucide-react"
+import { Loader2, Save, Settings, Users, Palette, Upload, Check, Eye, Edit2 } from "lucide-react"
+
+interface User {
+  id: string
+  email: string
+  balance: number
+  created_at: string
+  updated_at: string
+}
 
 export default function AdminPage() {
   const [config, setConfig] = useState<Record<string, string>>({})
@@ -22,8 +31,102 @@ export default function AdminPage() {
   const [dragActive, setDragActive] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [savedStates, setSavedStates] = useState<Record<string, boolean>>({})
+  const [users, setUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [editingBalance, setEditingBalance] = useState<string | null>(null)
+  const [newBalance, setNewBalance] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  const loadUsers = async () => {
+    setLoadingUsers(true)
+    try {
+      console.log("[v0] Starting to load users from user_profiles table")
+
+      const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false })
+
+      console.log("[v0] Supabase query result:", { data, error })
+      console.log("[v0] Data type:", typeof data)
+      console.log("[v0] Data is array:", Array.isArray(data))
+
+      if (error) {
+        console.error("[v0] Error loading users:", error)
+        throw error
+      }
+
+      setUsers((data as unknown as User[]) || [])
+      console.log("[v0] Loaded users successfully:", data?.length || 0)
+      console.log("[v0] Users data:", data)
+    } catch (error) {
+      console.error("[v0] Error loading users:", error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const updateUserBalance = async (userId: string, balance: number) => {
+    try {
+      console.log("[v0] Updating user balance:", userId, balance)
+
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({
+          balance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+
+      if (error) {
+        console.error("Error updating balance:", error)
+        throw error
+      }
+
+      // Update local state
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                balance,
+                updated_at: new Date().toISOString(),
+              }
+            : user,
+        ),
+      )
+
+      console.log("[v0] Balance updated successfully")
+      return true
+    } catch (error) {
+      console.error("Error updating balance:", error)
+      return false
+    }
+  }
+
+  const handleBalanceEdit = (userId: string, currentBalance: number) => {
+    setEditingBalance(userId)
+    setNewBalance(currentBalance.toString())
+  }
+
+  const handleBalanceSave = async (userId: string) => {
+    const balance = Number.parseFloat(newBalance)
+    if (isNaN(balance)) {
+      alert("Por favor, insira um valor válido")
+      return
+    }
+
+    const success = await updateUserBalance(userId, balance)
+    if (success) {
+      setEditingBalance(null)
+      setNewBalance("")
+    } else {
+      alert("Erro ao atualizar saldo")
+    }
+  }
+
+  const handleBalanceCancel = () => {
+    setEditingBalance(null)
+    setNewBalance("")
+  }
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -73,6 +176,7 @@ export default function AdminPage() {
   useEffect(() => {
     checkAuth()
     loadConfig()
+    loadUsers()
   }, [])
 
   const checkAuth = async () => {
@@ -80,7 +184,6 @@ export default function AdminPage() {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) {
-      // router.push("/login")
       return
     }
     setUser(user)
@@ -153,7 +256,7 @@ export default function AdminPage() {
 
   return (
     <div className="p-6 animate-in fade-in duration-500">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="mb-8 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-[#248f32]/20 to-transparent rounded-lg blur-xl"></div>
           <div className="relative bg-[#1e2329]/80 backdrop-blur-sm border border-[#2b3040] rounded-lg p-6">
@@ -339,7 +442,7 @@ export default function AdminPage() {
                         placeholder={defaultColor}
                       />
                       <div
-                        className="w-12 h-12 rounded-lg border-2 border-[#3e4651] shadow-lg"
+                        className="w-12 h-12 rounded-lg border-2 border-[#2b3040] shadow-lg"
                         style={{ backgroundColor: config[key] || defaultColor }}
                       />
                       <SaveButton configKey={key} />
@@ -358,14 +461,112 @@ export default function AdminPage() {
                   Gerenciamento de Usuários
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Em breve: adicionar e remover administradores
+                  Visualize todos os usuários e gerencie seus saldos
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <div className="text-center py-12">
-                  <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400 text-lg">Funcionalidade em desenvolvimento...</p>
-                </div>
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center gap-4">
+                      <Loader2 className="h-8 w-8 animate-spin text-[#248f32]" />
+                      <p className="text-gray-400">Carregando usuários...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-gray-300">
+                        Total de usuários: <span className="font-semibold text-[#248f32]">{users.length}</span>
+                      </p>
+                      <Button
+                        onClick={loadUsers}
+                        variant="outline"
+                        className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040] bg-transparent"
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Atualizar Lista
+                      </Button>
+                    </div>
+
+                    <div className="rounded-lg border border-[#2b3040] overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-[#2b3040] hover:bg-[#2b3040]/50">
+                            <TableHead className="text-gray-300">Nome</TableHead>
+                            <TableHead className="text-gray-300">Email</TableHead>
+                            <TableHead className="text-gray-300">Data de Cadastro</TableHead>
+                            <TableHead className="text-gray-300">Saldo</TableHead>
+                            <TableHead className="text-gray-300">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.map((user) => (
+                            <TableRow key={user.id} className="border-[#2b3040] hover:bg-[#2b3040]/30">
+                              <TableCell className="text-white">{user.email?.split("@")[0] || "Usuário"}</TableCell>
+                              <TableCell className="text-gray-300">{user.email}</TableCell>
+                              <TableCell className="text-gray-300">
+                                {new Date(user.created_at).toLocaleDateString("pt-BR")}
+                              </TableCell>
+                              <TableCell className="text-white">
+                                {editingBalance === user.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={newBalance}
+                                      onChange={(e) => setNewBalance(e.target.value)}
+                                      className="w-24 bg-[#2b3040] border-[#3e4651] text-white"
+                                      placeholder="0.00"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleBalanceSave(user.id)}
+                                      className="bg-[#248f32] hover:bg-[#1e7129] px-2"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={handleBalanceCancel}
+                                      className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040] px-2 bg-transparent"
+                                    >
+                                      ✕
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono">R$ {(user.balance || 0).toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {editingBalance !== user.id && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleBalanceEdit(user.id, user.balance || 0)}
+                                    className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040]"
+                                  >
+                                    <Edit2 className="h-3 w-3 mr-1" />
+                                    Editar Saldo
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {users.length === 0 && (
+                      <div className="text-center py-12">
+                        <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                        <p className="text-gray-400 text-lg">Nenhum usuário encontrado</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
