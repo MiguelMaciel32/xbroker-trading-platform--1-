@@ -13,10 +13,11 @@ export default function ClientLayout({
 }>) {
   const pathname = usePathname()
   const isLoginPage = pathname === "/login"
+  const isRegister = pathname === "/register"
 
   return (
     <>
-      {!isLoginPage && (
+      {!isLoginPage || isRegister &&   (
         <>
           <TradingHeader balance={12500.0} />
           <TradingSidebar />
