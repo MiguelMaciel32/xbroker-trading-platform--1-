@@ -5,6 +5,7 @@ import { Plus, Minus, TrendingUp, TrendingDown, ChevronDown } from "lucide-react
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import TradingHeader from "@/components/trading-header"
+import TradingSidebar from "@/components/trading-sidebar"
 
 const SITE_CONFIG = {
   platformName: "TradePro",
@@ -165,6 +166,8 @@ export default function TradingChart() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [showAssetSelector, setShowAssetSelector] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showMobileControls, setShowMobileControls] = useState(false)
 
   const { toast } = useToast()
 
@@ -375,6 +378,14 @@ export default function TradingChart() {
     setBalanceType(type)
   }
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen)
+  }
+
+  const closeSidebar = () => {
+    setSidebarOpen(false)
+  }
+
   const currentBalance = balanceType === "demo" ? balance : realBalance
 
   useEffect(() => {
@@ -413,65 +424,194 @@ export default function TradingChart() {
         onBalanceTypeChange={handleBalanceTypeChange}
       />
 
-      <div className="flex flex-col lg:flex-row pt-[70px] h-screen">
-        <div className="flex-1 relative order-1 lg:order-1 h-1/2 lg:h-full" style={{ backgroundColor: "#181A20" }}>
-          <div className="w-full h-full relative">
-            {!isLoading ? (
-              <TradingViewWidget symbol={selectedAsset.symbol} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-gray-400">Carregando gráfico...</div>
+      <div className="hidden lg:block">
+        <TradingSidebar />
+      </div>
+
+      <div className="flex flex-col min-h-screen w-full">
+        <div className="flex-1 w-full">
+          <div
+            className="w-full h-[calc(100vh-70px-140px)] lg:h-[calc(100vh-70px)] flex items-center justify-center"
+            style={{ backgroundColor: "#181A20" }}
+          >
+            <div className="w-full h-full relative">
+              {!isLoading ? (
+                <div className="w-full h-full">
+                  <TradingViewWidget symbol={selectedAsset.symbol} />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-gray-400">Carregando gráfico...</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:hidden bg-[#1E2329] border-t border-[#2B3139] h-[140px] overflow-y-auto w-full fixed bottom-0 left-0 right-0 z-40">
+          <div className="p-4 space-y-4 w-full">
+            {/* Asset Selection */}
+            <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
+              <div className="text-gray-400 text-xs mb-2">Ativo</div>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-between text-white hover:bg-[#2B3139] p-3 border border-[#2B3139] bg-[#1E2329] text-sm"
+                  onClick={() => setShowAssetSelector(!showAssetSelector)}
+                >
+                  <div className="text-left">
+                    <div className="font-semibold text-sm text-white">{selectedAsset.name}</div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="text-[#FCD535] font-bold text-xs">{selectedAsset.payout}%</div>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
+                    />
+                  </div>
+                </Button>
+                {showAssetSelector && (
+                  <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
+                    <div
+                      className="border border-[#2B3139] shadow-lg max-h-32 overflow-y-auto rounded"
+                      style={{ backgroundColor: "#1E2329" }}
+                    >
+                      {OTC_ASSETS.map((asset) => (
+                        <Button
+                          key={asset.symbol}
+                          variant="ghost"
+                          className={`w-full justify-between text-white p-3 text-sm transition-all duration-150 border-0 ${
+                            selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
+                          }`}
+                          onClick={() => handleAssetChange(asset)}
+                        >
+                          <span className="font-semibold text-white">{asset.name}</span>
+                          <span className="text-[#FCD535] font-bold text-xs">{asset.payout}%</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Trade Amount and Return */}
+            <div className="flex gap-3 w-full">
+              <div className="flex-1 rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
+                <div className="text-gray-400 text-xs mb-2">Valor</div>
+                <div className="flex items-center justify-between bg-gray-800 rounded p-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-gray-600 rounded-full w-7 h-7 p-0"
+                    onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="text-white font-semibold text-sm">R$ {tradeAmount.toFixed(2)}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-gray-600 rounded-full w-7 h-7 p-0"
+                    onClick={() => setTradeAmount(tradeAmount + 1)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 text-center py-3 rounded w-full" style={{ backgroundColor: "#181A20" }}>
+                <div className="text-gray-400 text-xs mb-1">Retorno</div>
+                <div className="text-[#FCD535] font-bold text-sm">
+                  R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 sticky bottom-0 bg-[#1E2329] pt-2 pb-2 w-full">
+              <Button
+                onClick={() => executeTrade("up")}
+                disabled={currentBalance < tradeAmount}
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg"
+              >
+                <TrendingUp className="h-5 w-5 mr-2" />
+                SUBIR
+              </Button>
+              <Button
+                onClick={() => executeTrade("down")}
+                disabled={currentBalance < tradeAmount}
+                className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-base font-bold rounded-lg shadow-lg"
+              >
+                <TrendingDown className="h-5 w-5 mr-2" />
+                DESCER
+              </Button>
+            </div>
+
+            {/* Active Trades */}
+            {activeTrades.length > 0 && (
+              <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
+                <div className="text-gray-400 text-xs mb-2">Posições Ativas ({activeTrades.length})</div>
+                <div className="space-y-2 max-h-24 overflow-y-auto">
+                  {activeTrades.map((trade) => (
+                    <div key={trade.id} className="flex justify-between items-center text-xs p-2 bg-gray-800 rounded">
+                      <span className="text-white">{trade.asset}</span>
+                      <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
+                        {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         </div>
 
         <div
-          className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l p-4 space-y-4 order-2 lg:order-2 h-1/2 lg:h-full overflow-y-auto"
+          className="hidden lg:block w-80 border-l p-4 space-y-4 h-[calc(100vh-70px)] overflow-y-auto fixed right-0 top-[70px]"
           style={{ backgroundColor: "#1E2329", borderColor: "#2B3139" }}
         >
-          <div className="rounded p-4" style={{ backgroundColor: "#181A20" }}>
-            <div className="text-gray-400 text-sm mb-3">Selecionar Ativo</div>
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Selecionar Ativo</div>
             <div className="relative">
               <Button
                 variant="ghost"
-                className="w-full justify-between text-white hover:bg-[#2B3139] p-4 border border-[#2B3139] bg-[#1E2329] transition-all duration-200"
+                className="w-full justify-between text-white hover:bg-[#2B3139] p-3 lg:p-4 border border-[#2B3139] bg-[#1E2329] transition-all duration-200"
                 onClick={() => setShowAssetSelector(!showAssetSelector)}
               >
                 <div className="text-left">
-                  <div className="font-semibold text-base text-white">{selectedAsset.name}</div>
-                  <div className="text-gray-400 text-sm">{selectedAsset.symbol}</div>
+                  <div className="font-semibold text-sm lg:text-base text-white">{selectedAsset.name}</div>
+                  <div className="text-gray-400 text-xs lg:text-sm">{selectedAsset.symbol}</div>
                 </div>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 lg:space-x-3">
                   <div className="text-right">
-                    <div className="text-green-400 font-bold text-sm">{selectedAsset.payout}%</div>
+                    <div className="text-green-400 font-bold text-xs lg:text-sm">{selectedAsset.payout}%</div>
                     <div className="text-gray-500 text-xs">Payout</div>
                   </div>
                   <ChevronDown
-                    className={`h-5 w-5 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
+                    className={`h-4 w-4 lg:h-5 lg:w-5 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
                   />
                 </div>
               </Button>
-
               {showAssetSelector && (
                 <div className="absolute top-full left-0 right-0 z-50 mt-1">
-                  <div className="border border-[#2B3139] shadow-lg" style={{ backgroundColor: "#1E2329" }}>
+                  <div
+                    className="border border-[#2B3139] shadow-lg max-h-60 overflow-y-auto"
+                    style={{ backgroundColor: "#1E2329" }}
+                  >
                     <div className="p-1">
                       {OTC_ASSETS.map((asset) => (
                         <Button
                           key={asset.symbol}
                           variant="ghost"
-                          className={`w-full justify-between text-white p-4 transition-all duration-150 border-0 ${
+                          className={`w-full justify-between text-white p-3 lg:p-4 transition-all duration-150 border-0 ${
                             selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
                           }`}
                           onClick={() => handleAssetChange(asset)}
                         >
                           <div className="text-left">
-                            <div className="font-semibold text-base text-white">{asset.name}</div>
-                            <div className="text-gray-400 text-sm">{asset.symbol}</div>
+                            <div className="font-semibold text-sm lg:text-base text-white">{asset.name}</div>
+                            <div className="text-gray-400 text-xs lg:text-sm">{asset.symbol}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-green-400 font-bold text-sm">{asset.payout}%</div>
+                            <div className="text-green-400 font-bold text-xs lg:text-sm">{asset.payout}%</div>
                             <div className="text-gray-500 text-xs">Payout</div>
                           </div>
                         </Button>
@@ -482,73 +622,68 @@ export default function TradingChart() {
               )}
             </div>
           </div>
-
-          <div className="rounded p-4" style={{ backgroundColor: "#181A20" }}>
-            <div className="text-gray-400 text-sm mb-3">Valor do Investimento</div>
-            <div className="flex items-center justify-between bg-gray-800 rounded-lg p-3">
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Valor do Investimento</div>
+            <div className="flex items-center justify-between bg-gray-800 rounded-lg p-2 lg:p-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0"
+                className="text-white hover:bg-gray-600 rounded-full w-7 h-7 lg:w-8 lg:h-8 p-0"
                 onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-3 w-3 lg:h-4 lg:w-4" />
               </Button>
-              <span className="text-white font-semibold text-lg">R$ {tradeAmount.toFixed(2)}</span>
+              <span className="text-white font-semibold text-base lg:text-lg">R$ {tradeAmount.toFixed(2)}</span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0"
+                className="text-white hover:bg-gray-600 rounded-full w-7 h-7 lg:w-8 lg:h-8 p-0"
                 onClick={() => setTradeAmount(tradeAmount + 1)}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3 w-3 lg:h-4 lg:w-4" />
               </Button>
             </div>
           </div>
-
-          <div className="text-center py-4 rounded-lg" style={{ backgroundColor: "#181A20" }}>
-            <div className="text-gray-400 text-sm mb-1">Retorno Potencial</div>
-            <div className="text-green-400 font-bold text-2xl">
+          <div className="text-center py-3 lg:py-4 rounded-lg" style={{ backgroundColor: "#181A20" }}>
+            <div className="text-gray-400 text-xs lg:text-sm mb-1">Retorno Potencial</div>
+            <div className="text-green-400 font-bold text-xl lg:text-2xl">
               R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
             </div>
-            <div className="text-gray-400 text-sm">Payout: {selectedAsset.payout}%</div>
+            <div className="text-gray-400 text-xs lg:text-sm">Payout: {selectedAsset.payout}%</div>
           </div>
-
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-3">
             <Button
               onClick={() => executeTrade("up")}
               disabled={currentBalance < tradeAmount}
-              className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-lg font-bold rounded-xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              <div className="flex items-center justify-center gap-3">
-                <TrendingUp className="h-6 w-6" />
+              <div className="flex items-center justify-center gap-2 lg:gap-3">
+                <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6" />
                 <span>SUBIR</span>
               </div>
             </Button>
             <Button
               onClick={() => executeTrade("down")}
               disabled={currentBalance < tradeAmount}
-              className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-4 text-lg font-bold rounded-xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              <div className="flex items-center justify-center gap-3">
-                <TrendingDown className="h-6 w-6" />
+              <div className="flex items-center justify-center gap-2 lg:gap-3">
+                <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6" />
                 <span>DESCER</span>
               </div>
             </Button>
           </div>
-
-          <div className="rounded-lg p-4" style={{ backgroundColor: "#181A20" }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white font-semibold">Posições Ativas</span>
+          <div className="rounded-lg p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+            <div className="flex items-center justify-between mb-2 lg:mb-3">
+              <span className="text-white font-semibold text-sm lg:text-base">Posições Ativas</span>
               <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-full text-xs">{activeTrades.length}</span>
             </div>
-            <div className="text-gray-400 text-sm text-center py-6 border border-dashed border-gray-600 rounded-lg">
+            <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
               Nenhuma posição ativa
             </div>
           </div>
         </div>
       </div>
-
       <Toaster />
     </div>
   )

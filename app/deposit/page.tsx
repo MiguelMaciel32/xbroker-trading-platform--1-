@@ -145,7 +145,7 @@ export default function DepositPage() {
 
       <div className="flex h-screen pt-[70px]">
         <div
-          className="hidden md:block w-16 border-r flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20"
+          className="hidden lg:block w-16 border-r flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20"
           style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
         >
           <Link
@@ -158,7 +158,6 @@ export default function DepositPage() {
           <Link
             href="/deposit"
             className="flex flex-col items-center space-y-1 p-3 rounded-lg transition-colors"
-            
             style={{ backgroundColor: "#FCD535", color: "#000" }}
           >
             <CreditCard className="h-6 w-6" />
@@ -188,32 +187,30 @@ export default function DepositPage() {
           </Link>
         </div>
 
-        <div className="flex-1 md:ml-16">
+        <div className="flex-1 w-full">
           <header className="bg-[#1E2329] border-b border-[#2B3139]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            <nav className="flex items-center space-x-4 sm:space-x-8">
-              <a href="/deposit" className="text-white border-b-2 border-[#FCD535] pb-1 text-sm sm:text-base ">
-                Depositar
-              </a>
-              <button className="text-[#848E9C] hover:text-white text-sm sm:text-base">Saque</button>
-            </nav>
-          </div>
-        </div>
-      </header>
+            <div className="w-full px-4 lg:px-6 py-3 sm:py-4">
+              <div className="flex items-center justify-between">
+                <nav className="flex items-center space-x-4 sm:space-x-8">
+                  <a href="/deposit" className="text-white border-b-2 border-[#FCD535] pb-1 text-sm sm:text-base ">
+                    Depositar
+                  </a>
+                  <button className="text-[#848E9C] hover:text-white text-sm sm:text-base">Saque</button>
+                </nav>
+              </div>
+            </div>
+          </header>
 
           <div className="flex-1">
-
-
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8  md:pt-24">
-              <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-                <div className="flex-1 max-w-full lg:max-w-2xl">
+            <div className="w-full px-4 lg:px-6 py-6 md:py-8">
+              <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8 max-w-full">
+                <div className="flex-1 w-full">
                   <h1 className="text-xl md:text-2xl font-semibold text-white mb-6 md:mb-8">
                     {currentStep === 3 ? "Depositar" : "Depósito BRL"}
                   </h1>
 
                   {currentStep === 1 && (
-                    <div className="bg-[#1E2329] p-4 md:p-6 mb-6">
+                    <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6 mb-6">
                       <h2 className="text-lg font-medium text-white mb-4">Selecione o método de pagamento</h2>
 
                       <div className="space-y-4">
@@ -270,7 +267,7 @@ export default function DepositPage() {
                   )}
 
                   {currentStep === 2 && (
-                    <div className="bg-[#1E2329] p-4 md:p-6 mb-6">
+                    <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6 mb-6">
                       <h2 className="text-lg font-medium text-white mb-4">Insira o valor do depósito</h2>
 
                       <div className="space-y-4">
@@ -319,7 +316,7 @@ export default function DepositPage() {
                   )}
 
                   {currentStep === 3 && (
-                    <div className="bg-[#1E2329] p-4 md:p-6 mb-6">
+                    <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6 mb-6">
                       <div className="text-center mb-6">
                         <h2 className="text-lg font-medium text-white mb-2">Escaneie o QR Code</h2>
                         <p className="text-[#848E9C] text-sm">
@@ -382,8 +379,8 @@ export default function DepositPage() {
                   )}
                 </div>
 
-                <div className="w-full lg:w-80 mt-8 lg:mt-0">
-                  <div className="bg-[#1E2329] p-4 md:p-6">
+                <div className="w-full lg:w-80 mt-4 sm:mt-8 lg:mt-0">
+                  <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6">
                     {currentStep === 3 ? (
                       <>
                         <h3 className="text-base md:text-lg font-medium text-white mb-4 md:mb-5">Como funciona</h3>
