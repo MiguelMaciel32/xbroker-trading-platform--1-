@@ -167,12 +167,14 @@ export default function BinanceLandingPage() {
               </h1>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 max-w-lg mx-auto lg:mx-0">
                 <Input
-                  placeholder="E-mail/Telefone"
+                  placeholder="E-mail"
                   className="flex-1 h-12 sm:h-14 bg-[#2B3139] border-[#2B3139] text-[#EAECEF] placeholder:text-[#848E9C]"
                 />
+                <Link href="/register">
                 <Button className="h-12 sm:h-14 px-6 sm:px-8 bg-[#FCD535] text-[#202630] hover:bg-[#F0B90B] font-semibold">
                   Comece Agora
                 </Button>
+                </Link>
               </div>
             </div>
 
