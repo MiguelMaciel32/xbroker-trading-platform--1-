@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import TradingHeader from "@/components/trading-header"
 import TradingSidebar from "@/components/trading-sidebar"
+import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
 
 const SITE_CONFIG = {
   platformName: "TradePro",
@@ -178,6 +179,7 @@ export default function TradingChart() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showMobileControls, setShowMobileControls] = useState(false)
   const [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([])
+  const tradeTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const { toast } = useToast()
 
@@ -254,7 +256,20 @@ export default function TradingChart() {
     })
   }
 
-  const executeTrade = (direction: "up" | "down") => {
+  const loadUserBalance = async () => {
+    try {
+      const result = await getUserBalance()
+      if (result.success && result.data) {
+        setBalance(result.data.balance)
+        // For now, real balance is separate - you can extend this later
+        setRealBalance(0)
+      }
+    } catch (error) {
+      console.error("Error loading balance:", error)
+    }
+  }
+
+  const executeTrade = async (direction: "up" | "down") => {
     const currentBalance = balanceType === "demo" ? balance : realBalance
 
     if (currentBalance < tradeAmount) {
@@ -264,6 +279,28 @@ export default function TradingChart() {
           balanceType === "real"
             ? "Você precisa fazer um depósito para operar com conta real"
             : "Você não tem saldo suficiente para esta operação",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const newBalance = currentBalance - tradeAmount
+      await updateUserBalance({
+        balance: newBalance,
+        operation: "set",
+      })
+
+      if (balanceType === "demo") {
+        setBalance(newBalance)
+      } else {
+        setRealBalance(newBalance)
+      }
+    } catch (error) {
+      console.error("Error updating balance:", error)
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar saldo. Tente novamente.",
         variant: "destructive",
       })
       return
@@ -297,12 +334,6 @@ export default function TradingChart() {
     setTradeMarkers((prev) => [...prev, newMarker])
     setActiveTrades((prev) => [...prev, newTrade])
 
-    if (balanceType === "demo") {
-      setBalance((prev) => prev - tradeAmount)
-    } else {
-      setRealBalance((prev) => prev - tradeAmount)
-    }
-
     const timer = setTimeout(() => {
       finalizeTrade(newTrade.id)
     }, duration)
@@ -317,7 +348,7 @@ export default function TradingChart() {
     })
   }
 
-  const finalizeTrade = (tradeId: string) => {
+  const finalizeTrade = async (tradeId: string) => {
     setActiveTrades((prev) => {
       const trade = prev.find((t) => t.id === tradeId)
       if (!trade) return prev
@@ -335,11 +366,25 @@ export default function TradingChart() {
       const payout = won ? trade.amount + trade.payout : 0
 
       if (won) {
-        if (balanceType === "demo") {
-          setBalance((prevBalance) => prevBalance + payout)
-        } else {
-          setRealBalance((prevBalance) => prevBalance + payout)
+        const updateBalance = async () => {
+          try {
+            const currentBalance = balanceType === "demo" ? balance : realBalance
+            const newBalance = currentBalance + payout
+            await updateUserBalance({
+              balance: newBalance,
+              operation: "set",
+            })
+
+            if (balanceType === "demo") {
+              setBalance(newBalance)
+            } else {
+              setRealBalance(newBalance)
+            }
+          } catch (error) {
+            console.error("Error updating balance after win:", error)
+          }
         }
+        updateBalance()
       }
 
       const historyEntry: TradeHistory = {
@@ -371,8 +416,6 @@ export default function TradingChart() {
         tradeTimersRef.current.delete(tradeId)
       }
 
-      // setTradeMarkers((prev) => prev.filter((marker) => marker.id !== tradeId))
-
       return prev.filter((t) => t.id !== tradeId)
     })
   }
@@ -398,8 +441,6 @@ export default function TradingChart() {
     })
   }
 
-  const tradeTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
-
   const handleBalanceTypeChange = (type: "demo" | "real") => {
     setBalanceType(type)
   }
@@ -413,6 +454,10 @@ export default function TradingChart() {
   }
 
   const currentBalance = balanceType === "demo" ? balance : realBalance
+
+  useEffect(() => {
+    loadUserBalance()
+  }, [])
 
   useEffect(() => {
     setIsLoading(true)
@@ -444,20 +489,22 @@ export default function TradingChart() {
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now()
-      setTradeMarkers((prev) => prev.filter((marker) => now - marker.timestamp < 300000)) // Keep markers for 5 minutes
-    }, 60000) // Clean up every minute
+      setTradeMarkers((prev) => prev.filter((marker) => now - marker.timestamp < 300000))
+    }, 60000)
 
     return () => clearInterval(cleanupInterval)
   }, [])
 
+  function handleBalanceUpdate(balance: number): void {
+    throw new Error("")
+  }
+
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
-      <TradingHeader
-        balance={balance}
-        balanceType={balanceType}
-        realBalance={realBalance}
-        onBalanceTypeChange={handleBalanceTypeChange}
-      />
+ <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
+
+
+
 
       <div className="hidden lg:block">
         <TradingSidebar />
@@ -479,15 +526,15 @@ export default function TradingChart() {
                       .filter((marker) => marker.asset === selectedAsset.symbol)
                       .map((marker, index) => {
                         const timeElapsed = Date.now() - marker.timestamp
-                        const opacity = Math.max(0.3, 1 - timeElapsed / 300000) // Fade out over 5 minutes
+                        const opacity = Math.max(0.3, 1 - timeElapsed / 300000)
 
                         return (
                           <div
                             key={marker.id}
                             className="absolute animate-bounce"
                             style={{
-                              left: `${60 + ((index * 80) % 200)}px`, // Distribute horizontally across chart
-                              top: `${60 + ((index * 40) % 150)}px`, // Distribute vertically in chart area
+                              left: `${60 + ((index * 80) % 200)}px`,
+                              top: `${60 + ((index * 40) % 150)}px`,
                               opacity: opacity,
                             }}
                           >
@@ -739,33 +786,30 @@ export default function TradingChart() {
               </Button>
             </div>
             <div className="mt-3 text-center">
-              <div className="text-gray-400 text-xs">Retorno Esperado</div>
-              <div className="text-[#FCD535] font-bold text-sm lg:text-base">
-                R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
+              <div className="flex items-center justify-between mb-2 lg:mb-3">
+                <span className="text-white font-semibold text-sm lg:text-base">Posições Ativas</span>
+                <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-full text-xs">{activeTrades.length}</span>
               </div>
+              {activeTrades.length > 0 ? (
+                <div className="space-y-2">
+                  {activeTrades.map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="flex justify-between items-center text-xs p-3 bg-gray-800 rounded-lg"
+                    >
+                      <span className="text-white font-medium">{trade.asset}</span>
+                      <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
+                        {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
+                  Nenhuma posição ativa
+                </div>
+              )}
             </div>
-          </div>
-          <div className="text-center py-3 lg:py-4 rounded-lg" style={{ backgroundColor: "#181A20" }}>
-            <div className="flex items-center justify-between mb-2 lg:mb-3">
-              <span className="text-white font-semibold text-sm lg:text-base">Posições Ativas</span>
-              <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-full text-xs">{activeTrades.length}</span>
-            </div>
-            {activeTrades.length > 0 ? (
-              <div className="space-y-2">
-                {activeTrades.map((trade) => (
-                  <div key={trade.id} className="flex justify-between items-center text-xs p-3 bg-gray-800 rounded-lg">
-                    <span className="text-white font-medium">{trade.asset}</span>
-                    <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
-                      {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
-                Nenhuma posição ativa
-              </div>
-            )}
           </div>
         </div>
       </div>
