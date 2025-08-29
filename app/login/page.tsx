@@ -216,12 +216,12 @@ export default function LoginPage() {
                 <form onSubmit={handleEmailSubmit}>
                   <div className="mb-6">
                     <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-PrimaryText)" }}>
-                      E-mail/Telefone
+                      E-mail
                     </label>
                     <div>
                       <input
                         type="text"
-                        placeholder="E-mail/telefone (sem o código do país)"
+                        placeholder="E-mail (sem o código do país)"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-1"
