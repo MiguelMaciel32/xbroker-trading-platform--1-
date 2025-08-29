@@ -44,7 +44,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido"
       setBalanceError(errorMessage)
-      console.error("Erro ao buscar saldo:", err)
+      // console.error("Erro ao buscar saldo:", err)
     } finally {
       setIsLoadingBalance(false)
     }

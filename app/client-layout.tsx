@@ -16,7 +16,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const showLayout = !(isLoginPage || isRegisterPage || isLandingPage)
 
   function handleBalanceUpdate(balance: number): void {
-    throw new Error("Function not implemented.")
+    throw new Error("")
   }
 
   return (

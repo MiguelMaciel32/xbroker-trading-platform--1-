@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Shield, Zap, BarChart3, Globe } from "lucide-react"
+import Link from "next/link"
 
 export default function BinanceLandingPage() {
   const cryptoData = [
@@ -134,10 +135,14 @@ export default function BinanceLandingPage() {
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <div className="text-2xl font-bold text-[#F0B90B]">Quantium Broker</div>
           <div className="flex gap-4">
+            <Link href="/login">
             <Button variant="ghost" className="text-[#EAECEF] hover:text-[#F0B90B]">
               Login
             </Button>
+            </Link>
+               <Link href="/register">
             <Button className="bg-[#FCD535] text-[#202630] hover:bg-[#F0B90B]">Cadastre-se</Button>
+            </Link>
           </div>
         </div>
       </header>

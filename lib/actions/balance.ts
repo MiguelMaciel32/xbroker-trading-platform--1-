@@ -130,7 +130,7 @@ export async function updateUserBalance(request: BalanceUpdateRequest): Promise<
 
       if (fetchError) {
         console.error("Erro ao buscar saldo atual:", fetchError)
-        return { success: false, error: "Erro ao buscar saldo atual" }
+        return { success: false }
       }
 
       // Garantir que currentBalance é um número

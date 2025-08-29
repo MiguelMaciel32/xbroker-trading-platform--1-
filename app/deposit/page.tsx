@@ -4,39 +4,40 @@ import type React from "react"
 import Link from "next/link"
 import { CreditCard, ArrowUpDown, User } from "lucide-react"
 import { ExternalLink, Plus, Bell, Settings, BarChart3, Menu, X } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 class PixupBRService {
   static async createPixPayment(data: {
-    amount: number;
-    external_id: string;
-    payerQuestion?: string;
-    postbackUrl?: string;
+    amount: number
+    external_id: string
+    payerQuestion?: string
+    postbackUrl?: string
     payer?: {
-      name?: string;
-      document?: string;
-      email?: string;
-    };
+      name?: string
+      document?: string
+      email?: string
+    }
   }) {
     try {
-      const response = await fetch('/api/pixupbr/qrcode', {
-        method: 'POST',
+      const response = await fetch("/api/pixupbr/qrcode", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
-      });
+      })
 
-      const result = await response.json();
-      
+      const result = await response.json()
+
       if (!response.ok) {
-        throw new Error(result.error || 'Erro ao criar pagamento PIX');
+        throw new Error(result.error || "Erro ao criar pagamento PIX")
       }
 
-      return result.data;
+      return result.data
     } catch (error) {
-      console.error('Erro ao criar pagamento PIX:', error);
-      throw error;
+      console.error("Erro ao criar pagamento PIX:", error)
+      throw error
     }
   }
 }
@@ -49,10 +50,11 @@ export default function DepositPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [depositAmount, setDepositAmount] = useState("")
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [loading, setLoading] = useState(false);
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [pixKey, setPixKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false)
+  const [qrCode, setQrCode] = useState<string | null>(null)
+  const [pixKey, setPixKey] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
   const name = "Nome do seu site"
   const [pixCode] = useState(
     "00020126580014br.gov.bcb.pix013605332e35-0114-4915-bbd2-768536686de2520400005303986540512.005802BR5925GOWD INSTITUICAO DE PAGAM6007MARINGA62290525Widc1h0crc0000015ggyUzPA563047628",
@@ -62,6 +64,19 @@ export default function DepositPage() {
     platformName: "TradePro",
     logoUrl: "/placeholder.svg?height=32&width=120&text=TradePro",
   }
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUser(user)
+    }
+
+    getUser()
+  }, [])
 
   const handleContinue = () => {
     if (currentStep === 1 && agreedToTerms) {
@@ -83,78 +98,67 @@ export default function DepositPage() {
 
   const copyPixCode = async () => {
     try {
-      await navigator.clipboard.writeText(pixCode)
+      await navigator.clipboard.writeText(pixKey || pixCode)
     } catch (err) {
       console.error("Failed to copy PIX code:", err)
     }
   }
 
   const handleCreatePayment = async () => {
-    setLoading(true);
-    setError(null);
-    setQrCode(null);
-    setPixKey(null);
-    
+    setLoading(true)
+    setError(null)
+    setQrCode(null)
+    setPixKey(null)
+
     try {
-      // Converte o valor para número, trocando vírgula por ponto se necessário
-      const amountValue = Number.parseFloat(depositAmount.replace(",", "."));
-      
-      // Validação adicional do valor
+      const amountValue = Number.parseFloat(depositAmount.replace(",", "."))
+
       if (!amountValue || amountValue < 100 || amountValue > 54690) {
-        throw new Error('Valor inválido. O valor deve estar entre R$ 100,00 e R$ 54.690,00');
+        throw new Error("Valor inválido. O valor deve estar entre R$ 100,00 e R$ 54.690,00")
+      }
+
+      if (!user?.email) {
+        throw new Error("Usuário não encontrado. Faça login para continuar.")
       }
 
       const payment = await PixupBRService.createPixPayment({
-        amount: amountValue, // Agora usa o valor dinâmico do formulário
-        external_id: `pedido_${Date.now()}`,
+        amount: amountValue,
+        external_id: `${user.email}|${Date.now()}`,
         payerQuestion: `Depósito de R$ ${depositAmount}`,
         postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
         payer: {
-          name: 'João Silva',
-          document: '12345678901',
-          email: 'joao@email.com'
-        }
-      });
+          name: user.user_metadata?.full_name || "Usuário",
+          document: "12345678901",
+          email: user.email,
+        },
+      })
 
-      console.log('Resposta completa do pagamento:', payment);
-
-      // Avança para o próximo step se a validação passou
       if (currentStep === 1 && agreedToTerms) {
         setCurrentStep(2)
       } else if (currentStep === 2 && isAmountValid()) {
         setCurrentStep(3)
       }
 
-      // A resposta da PixupBR tem esta estrutura:
-      // qrcode: string do código PIX (para copiar/colar)
-      // Para gerar QR Code visual, precisamos converter essa string
-      const qrCodeString = payment.qrcode;
-      const pixKeyValue = payment.qrcode; // A string do QR code também serve como chave PIX
-      
-      console.log('QR Code string:', qrCodeString);
-      console.log('Transaction ID:', payment.transactionId);
-      console.log('Status:', payment.status);
-      console.log('Amount:', amountValue); // Log do valor usado
-      
-      // Gerar URL do QR Code usando um serviço online
-      const qrCodeImageUrl = qrCodeString ? 
-        `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}` 
-        : null;
-      
-      setQrCode(qrCodeImageUrl);
-      setPixKey(qrCodeString);
+      const qrCodeString = payment.qrcode
+      const pixKeyValue = payment.qrcode
+
+      const qrCodeImageUrl = qrCodeString
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
+        : null
+
+      setQrCode(qrCodeImageUrl)
+      setPixKey(qrCodeString)
 
       if (!qrCodeImageUrl && !qrCodeString) {
-        setError('QR Code não encontrado na resposta da API');
+        setError("QR Code não encontrado na resposta da API")
       }
-      
     } catch (error: any) {
-      console.error('Erro:', error);
-      setError(error.message || 'Erro ao criar pagamento PIX');
+      console.error("Erro:", error)
+      setError(error.message || "Erro ao criar pagamento PIX")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
@@ -321,11 +325,7 @@ export default function DepositPage() {
                     </div>
                   )}
 
-                  {error && (
-                    <div className="bg-red-600 p-4 mb-6 text-white">
-                      {error}
-                    </div>
-                  )}
+                  {error && <div className="bg-red-600 p-4 mb-6 text-white">{error}</div>}
 
                   {currentStep === 1 && (
                     <div className="bg-[#1E2329] p-3 sm:p-4 md:p-6 mb-6">
@@ -428,7 +428,7 @@ export default function DepositPage() {
                             : "bg-[#2B3139] text-[#848E9C] cursor-not-allowed"
                         } transition-colors`}
                       >
-                        {loading ? 'Processando...' : 'Continuar'}
+                        {loading ? "Processando..." : "Continuar"}
                       </button>
                     </div>
                   )}
