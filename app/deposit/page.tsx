@@ -93,7 +93,7 @@ export default function DepositPage() {
 
   const isAmountValid = () => {
     const amount = Number.parseFloat(depositAmount.replace(",", "."))
-    return amount >= 100 && amount <= 54690
+    return amount >= 1 && amount <= 54690
   }
 
   const copyPixCode = async () => {
@@ -113,7 +113,7 @@ export default function DepositPage() {
     try {
       const amountValue = Number.parseFloat(depositAmount.replace(",", "."))
 
-      if (!amountValue || amountValue < 100 || amountValue > 54690) {
+      if (!amountValue || amountValue < 1 || amountValue > 54690) {
         throw new Error("Valor inválido. O valor deve estar entre R$ 100,00 e R$ 54.690,00")
       }
 
@@ -407,7 +407,7 @@ export default function DepositPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
-                          {["100", "500", "900"].map((amount) => (
+                          {["1", "500", "900"].map((amount) => (
                             <button
                               key={amount}
                               onClick={() => setDepositAmount(amount)}
