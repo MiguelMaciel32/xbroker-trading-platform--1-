@@ -64,6 +64,15 @@ interface TradeHistory {
   timestamp: number
 }
 
+interface TradeMarker {
+  id: string
+  direction: "up" | "down"
+  price: number
+  timestamp: number
+  asset: string
+  amount: number
+}
+
 const OTC_ASSETS: OTCAsset[] = [
   { symbol: "BTC/USDT", name: "Bitcoin", basePrice: 65084.55, volatility: 2500.0, payout: 95, icon: "" },
   { symbol: "TESLA-OTC-54", name: "Tesla", basePrice: 245.5, volatility: 15.8, payout: 98, icon: "" },
@@ -168,6 +177,7 @@ export default function TradingChart() {
   const [showAssetSelector, setShowAssetSelector] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showMobileControls, setShowMobileControls] = useState(false)
+  const [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([])
 
   const { toast } = useToast()
 
@@ -275,6 +285,16 @@ export default function TradingChart() {
       status: "active",
     }
 
+    const newMarker: TradeMarker = {
+      id: newTrade.id,
+      direction,
+      price: currentPrice,
+      timestamp: Date.now(),
+      asset: selectedAsset.symbol,
+      amount: tradeAmount,
+    }
+
+    setTradeMarkers((prev) => [...prev, newMarker])
     setActiveTrades((prev) => [...prev, newTrade])
 
     if (balanceType === "demo") {
@@ -290,9 +310,10 @@ export default function TradingChart() {
     tradeTimersRef.current.set(newTrade.id, timer)
 
     toast({
-      title: `Trade ${direction === "up" ? "COMPRA" : "VENDA"} Executado!`,
-      description: `${selectedAsset.name} - R$ ${tradeAmount.toFixed(2)}`,
-      className: "bg-green-900 border-green-600 text-white",
+      title: `🚀 Trade ${direction === "up" ? "COMPRA" : "VENDA"} Executado!`,
+      description: `${selectedAsset.name} - R$ ${tradeAmount.toFixed(2)} • Preço: ${formatPrice(currentPrice)} • Retorno: R$ ${(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}`,
+      className:
+        direction === "up" ? "bg-green-900 border-green-600 text-white" : "bg-red-900 border-red-600 text-white",
     })
   }
 
@@ -335,9 +356,12 @@ export default function TradingChart() {
 
       setTradeHistory((prevHistory) => [...prevHistory, historyEntry])
 
+      const priceChangePercent = ((priceChange / trade.entryPrice) * 100).toFixed(2)
       toast({
         title: won ? "🎉 TRADE VENCEDOR!" : "😔 Trade Perdedor",
-        description: won ? `Ganhou R$ ${trade.payout.toFixed(2)}!` : `Perdeu R$ ${trade.amount.toFixed(2)}`,
+        description: won
+          ? `Ganhou R$ ${trade.payout.toFixed(2)}! • Variação: ${priceChangePercent}%`
+          : `Perdeu R$ ${trade.amount.toFixed(2)} • Variação: ${priceChangePercent}%`,
         className: won ? "bg-green-900 border-green-600 text-white" : "bg-red-900 border-red-600 text-white",
       })
 
@@ -346,6 +370,8 @@ export default function TradingChart() {
         clearTimeout(timer)
         tradeTimersRef.current.delete(tradeId)
       }
+
+      // setTradeMarkers((prev) => prev.filter((marker) => marker.id !== tradeId))
 
       return prev.filter((t) => t.id !== tradeId)
     })
@@ -415,6 +441,15 @@ export default function TradingChart() {
     }
   }, [selectedAsset, selectedTime])
 
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now()
+      setTradeMarkers((prev) => prev.filter((marker) => now - marker.timestamp < 300000)) // Keep markers for 5 minutes
+    }, 60000) // Clean up every minute
+
+    return () => clearInterval(cleanupInterval)
+  }, [])
+
   return (
     <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
       <TradingHeader
@@ -431,13 +466,50 @@ export default function TradingChart() {
       <div className="flex flex-col min-h-screen w-full">
         <div className="flex-1 w-full">
           <div
-            className="w-full h-[60vh] lg:h-[calc(100vh-70px)] flex items-center justify-center"
+            className="w-full h-[60vh] lg:h-[calc(100vh-70px)] flex items-center justify-center relative"
             style={{ backgroundColor: "#181A20" }}
           >
             <div className="w-full h-full relative">
               {!isLoading ? (
-                <div className="w-full h-full">
+                <div className="w-full h-full relative">
                   <TradingViewWidget symbol={selectedAsset.symbol} />
+
+                  <div className="absolute inset-0 pointer-events-none z-10">
+                    {tradeMarkers
+                      .filter((marker) => marker.asset === selectedAsset.symbol)
+                      .map((marker, index) => {
+                        const timeElapsed = Date.now() - marker.timestamp
+                        const opacity = Math.max(0.3, 1 - timeElapsed / 300000) // Fade out over 5 minutes
+
+                        return (
+                          <div
+                            key={marker.id}
+                            className="absolute animate-bounce"
+                            style={{
+                              left: `${60 + ((index * 80) % 200)}px`, // Distribute horizontally across chart
+                              top: `${60 + ((index * 40) % 150)}px`, // Distribute vertically in chart area
+                              opacity: opacity,
+                            }}
+                          >
+                            <div
+                              className={`flex items-center space-x-2 px-2 py-1 rounded-md shadow-xl border ${
+                                marker.direction === "up"
+                                  ? "bg-green-800/95 border-green-400 text-green-100"
+                                  : "bg-red-800/95 border-red-400 text-red-100"
+                              } backdrop-blur-sm`}
+                            >
+                              <div
+                                className={`w-2 h-2 rounded-full animate-pulse ${
+                                  marker.direction === "up" ? "bg-green-300" : "bg-red-300"
+                                }`}
+                              />
+                              <div className="text-xs font-bold">{marker.direction === "up" ? "↗" : "↘"}</div>
+                              <div className="text-xs font-semibold">R$ {marker.amount.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full">
@@ -450,24 +522,25 @@ export default function TradingChart() {
 
         <div className="lg:hidden bg-[#1E2329] border-t border-[#2B3139] w-full">
           <div className="p-4 space-y-4 w-full">
-              <div className="flex gap-3 w-full">
-          <Button
-            onClick={() => executeTrade("up")}
-            disabled={currentBalance < tradeAmount}
-            className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-          >
-            <TrendingUp className="h-6 w-6 mr-2" />
-            SUBIR
-          </Button>
-          <Button
-            onClick={() => executeTrade("down")}
-            disabled={currentBalance < tradeAmount}
-            className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-          >
-            <TrendingDown className="h-6 w-6 mr-2" />
-            DESCER
-          </Button>
-        </div>
+            <div className="flex gap-3 w-full">
+              <Button
+                onClick={() => executeTrade("up")}
+                disabled={currentBalance < tradeAmount}
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
+              >
+                <TrendingUp className="h-6 w-6 mr-2" />
+                SUBIR
+              </Button>
+              <Button
+                onClick={() => executeTrade("down")}
+                disabled={currentBalance < tradeAmount}
+                className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
+              >
+                <TrendingDown className="h-6 w-6 mr-2" />
+                DESCER
+              </Button>
+            </div>
+
             <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
               <div className="text-gray-400 text-xs mb-2">Ativo</div>
               <div className="relative">
@@ -561,7 +634,7 @@ export default function TradingChart() {
               </div>
             )}
 
-            <div className="pb-20"></div>
+            <div className="pb-4"></div>
           </div>
         </div>
 
@@ -645,38 +718,58 @@ export default function TradingChart() {
               </Button>
             </div>
           </div>
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Executar Trade</div>
+            <div className="space-y-3">
+              <Button
+                onClick={() => executeTrade("up")}
+                disabled={currentBalance < tradeAmount}
+                className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
+              >
+                <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
+                SUBIR
+              </Button>
+              <Button
+                onClick={() => executeTrade("down")}
+                disabled={currentBalance < tradeAmount}
+                className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
+              >
+                <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
+                DESCER
+              </Button>
+            </div>
+            <div className="mt-3 text-center">
+              <div className="text-gray-400 text-xs">Retorno Esperado</div>
+              <div className="text-[#FCD535] font-bold text-sm lg:text-base">
+                R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
+              </div>
+            </div>
+          </div>
           <div className="text-center py-3 lg:py-4 rounded-lg" style={{ backgroundColor: "#181A20" }}>
             <div className="flex items-center justify-between mb-2 lg:mb-3">
               <span className="text-white font-semibold text-sm lg:text-base">Posições Ativas</span>
               <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-full text-xs">{activeTrades.length}</span>
             </div>
-            <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
-              Nenhuma posição ativa
-            </div>
+            {activeTrades.length > 0 ? (
+              <div className="space-y-2">
+                {activeTrades.map((trade) => (
+                  <div key={trade.id} className="flex justify-between items-center text-xs p-3 bg-gray-800 rounded-lg">
+                    <span className="text-white font-medium">{trade.asset}</span>
+                    <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
+                      {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
+                Nenhuma posição ativa
+              </div>
+            )}
           </div>
         </div>
       </div>
       <Toaster />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E2329] border-t border-[#2B3139] p-4 lg:hidden">
-        {/* <div className="flex gap-3 w-full">
-          <Button
-            onClick={() => executeTrade("up")}
-            disabled={currentBalance < tradeAmount}
-            className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-          >
-            <TrendingUp className="h-6 w-6 mr-2" />
-            SUBIR
-          </Button>
-          <Button
-            onClick={() => executeTrade("down")}
-            disabled={currentBalance < tradeAmount}
-            className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-          >
-            <TrendingDown className="h-6 w-6 mr-2" />
-            DESCER
-          </Button>
-        </div> */}
-      </div>
     </div>
   )
 }
