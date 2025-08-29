@@ -15,11 +15,15 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   // Exibe header/sidebar apenas se não estiver em login, registro ou landing
   const showLayout = !(isLoginPage || isRegisterPage || isLandingPage)
 
+  function handleBalanceUpdate(balance: number): void {
+    throw new Error("Function not implemented.")
+  }
+
   return (
     <>
       {showLayout && (
         <>
-          <TradingHeader balance={12500.0} />
+         <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
           <TradingSidebar />
         </>
       )}
