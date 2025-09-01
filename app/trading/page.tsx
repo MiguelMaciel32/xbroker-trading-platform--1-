@@ -576,7 +576,7 @@ export default function TradingChart() {
                 className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
               >
                 <TrendingUp className="h-6 w-6 mr-2" />
-                SUBIR
+                COMPRAR
               </Button>
               <Button
                 onClick={() => executeTrade("down")}
@@ -584,7 +584,7 @@ export default function TradingChart() {
                 className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
               >
                 <TrendingDown className="h-6 w-6 mr-2" />
-                DESCER
+                VENDER
               </Button>
             </div>
 
@@ -774,7 +774,7 @@ export default function TradingChart() {
                 className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
               >
                 <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
-                SUBIR
+                COMPRAR
               </Button>
               <Button
                 onClick={() => executeTrade("down")}
@@ -782,7 +782,7 @@ export default function TradingChart() {
                 className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
               >
                 <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
-                DESCER
+                VENDER
               </Button>
             </div>
             <div className="mt-3 text-center">

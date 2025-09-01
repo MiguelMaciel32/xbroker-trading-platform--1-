@@ -103,14 +103,14 @@ export default function TradingSidebar() {
           </a>
         )}
 
-        <Link
+        {/* <Link
           href="/configuracoes"
           className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
           style={getActiveStyles("/configuracoes")}
           title="Configurações - Ajuste suas preferências"
         >
           <Settings className={`h-6 w-6 transition-colors ${getIconColor("/configuracoes")}`} />
-        </Link>
+        </Link> */}
 
         <Link
           href="/account"

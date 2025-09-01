@@ -183,10 +183,7 @@ export default function DepositPage() {
           <div className="flex items-center space-x-2 md:space-x-4">
             <Bell className="w-4 h-4 md:w-5 md:h-5 text-gray-400 hidden sm:block" />
             <div className="flex items-center space-x-2 md:space-x-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-gray-400 text-xs md:text-sm">Saldo demo</div>
-                <div className="text-white font-semibold text-sm md:text-base">R$ {balance.toFixed(2)}</div>
-              </div>
+
               <button
                 style={{ backgroundColor: "#FCD535", color: "#000000" }}
                 className="bg-green-500 hover:bg-green-600 text-black font-semibold px-2 py-1 md:px-4 md:py-2 text-sm md:text-base flex items-center"
@@ -232,14 +229,14 @@ export default function DepositPage() {
               <span className="text-white">Saque</span>
             </Link>
 
-            <Link
+            {/* <Link
               href="/configuracoes"
               className="flex items-center space-x-3 px-6 py-3 hover:bg-gray-700 transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <Settings className="h-5 w-5 text-gray-400" />
               <span className="text-white">Configurações</span>
-            </Link>
+            </Link> */}
 
             <Link
               href="/account"
@@ -282,12 +279,12 @@ export default function DepositPage() {
 
           <div className="flex-1"></div>
 
-          <Link
+          {/* <Link
             href="/configuracoes"
             className="flex flex-col items-center space-y-1 hover:bg-gray-700 p-3 rounded-lg transition-colors"
           >
             <Settings className="h-6 w-6 text-gray-400" />
-          </Link>
+          </Link> */}
 
           <Link
             href="/account"

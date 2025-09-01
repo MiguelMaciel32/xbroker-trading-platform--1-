@@ -16,14 +16,18 @@ export async function getUserProfile(): Promise<UserProfile | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data, error } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
 
   if (error) {
     console.error("Error fetching user profile:", error)
     return null
   }
 
-  return data
+  return data as unknown as UserProfile
 }
 
 export async function updateUserBalance(newBalance: number): Promise<boolean> {
@@ -56,7 +60,7 @@ export async function createUserProfile(userId: string, email: string): Promise<
   const { error } = await supabase.from("user_profiles").insert({
     id: userId,
     email: email,
-    balance: 1000.0,
+    balance: 0,
   })
 
   if (error) {

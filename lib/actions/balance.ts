@@ -48,7 +48,7 @@ export async function getUserBalance(): Promise<BalanceResult> {
 
     // Se não encontrou o perfil, criar um com saldo inicial
     if (!userProfile) {
-      const initialBalance = 10000.0 // Saldo demo inicial
+      const initialBalance = 0 // Saldo demo inicial
 
       const { data: newProfile, error: createError } = await supabase
         .from("user_profiles")

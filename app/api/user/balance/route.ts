@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
 
     // Se não encontrou o perfil, criar um com saldo inicial
     if (!userProfile) {
-      const initialBalance = 10000 // Saldo demo inicial
+      // const initialBalance = 10000 // Saldo demo inicial
       
       const { data: newProfile, error: createError } = await supabase
         .from("user_profiles")
         .insert({
           id: user.id,
           email: user.email,
-          balance: initialBalance
+          balance: 0,
         })
         .select("balance")
         .single()
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          balance: initialBalance,
+          balance: 0,
           user_id: user.id
         }
       })
