@@ -6,12 +6,15 @@ import { Plus, Bell, RefreshCw } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
 import Link from "next/link"
 import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
+import { useRouter } from "next/navigation"
+
 
 interface TradingHeaderProps {
   onBalanceUpdate?: (balance: number) => void
 }
 
 export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
+  const router = useRouter()
   const [config, setConfig] = useState<Record<string, string>>({
     platform_name: "TradePro",
     platform_logo:
@@ -43,6 +46,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido"
+      router.push("/login")
       setBalanceError(errorMessage)
       // console.error("Erro ao buscar saldo:", err)
     } finally {
