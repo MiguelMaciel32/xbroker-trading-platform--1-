@@ -152,7 +152,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
                 className="hover:opacity-90 text-black font-semibold px-2 sm:px-4 text-xs sm:text-sm transition-opacity"
               >
                 <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                <span className="hidden sm:inline">Depósito</span>
+                <span className="">Depósito</span>
               </Button>
             </Link>
           </div>
