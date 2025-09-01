@@ -93,7 +93,7 @@ export default function DepositPage() {
 
   const isAmountValid = () => {
     const amount = Number.parseFloat(depositAmount.replace(",", "."))
-    return amount >= 1 && amount <= 54690
+    return amount >= 100 && amount <= 54690
   }
 
   const copyPixCode = async () => {
@@ -404,7 +404,7 @@ export default function DepositPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
-                          {["1", "500", "900"].map((amount) => (
+                          {["100", "500", "900"].map((amount) => (
                             <button
                               key={amount}
                               onClick={() => setDepositAmount(amount)}

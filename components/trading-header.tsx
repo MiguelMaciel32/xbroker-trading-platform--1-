@@ -115,9 +115,8 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
         <div className="flex items-center space-x-2 sm:space-x-6">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <img
-              src={config.platform_logo || "/placeholder.svg"}
-              alt={config.platform_name || "Platform"}
-              className="h-6 w-6 sm:h-8 sm:w-8 object-contain"
+              src= "/logo/logo.png"
+              className="w-10 h-10 sm:h-12 sm:w-12 object-contain"
             />
             <span className="hidden xs:block text-white font-semibold text-sm sm:text-lg">
               {config.platform_name || "TradePro"}
