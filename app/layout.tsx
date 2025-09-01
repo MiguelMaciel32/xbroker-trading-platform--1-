@@ -6,8 +6,8 @@ import "./globals.css"
 import ClientLayout from "../app/client-layout"
 
 export const metadata: Metadata = {
-  title: "TradePro - Plataforma de Trading",
-  description: "Plataforma profissional de trading OTC",
+  title: "Quantium Broker - Plataforma de Trading",
+  description: "Plataforma profissional de trading ",
 }
 
 export default function RootLayout({
