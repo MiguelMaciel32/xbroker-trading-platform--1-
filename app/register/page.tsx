@@ -203,9 +203,9 @@ export default function RegisterPage() {
               <div className="text-center mb-8">
                 <div className="flex items-center justify-center mb-8">
                   <img
-                    src={platformConfig.platform_logo || "/placeholder.svg"}
-                    width={60}
-                    height={60}
+                    src="/logo/logo.png"
+                    width={30}
+                    height={30}
                     alt={platformConfig.platform_name}
                   />
                 </div>
