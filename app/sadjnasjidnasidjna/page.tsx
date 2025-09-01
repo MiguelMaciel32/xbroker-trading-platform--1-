@@ -544,7 +544,7 @@ function AdminPage() {
                                   {editingBalance !== user.id && (
                                     <Button
                                       size="sm"
-                                      variant="outline"
+                         
                                       onClick={() => handleBalanceEdit(user.id, user.balance || 0)}
                                       className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040]"
                                     >
