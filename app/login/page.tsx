@@ -220,7 +220,7 @@ export default function LoginPage() {
                     <div>
                       <input
                         type="text"
-                        placeholder="E-mail"
+                        placeholder="Digite seu E-mail"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full px-4 py-3 rounded-lg border text-base focus:outline-none focus:ring-1"
