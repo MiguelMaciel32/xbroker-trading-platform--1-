@@ -132,7 +132,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
               <div className="text-right">
                 <div className="text-gray-400 text-xs sm:text-sm">Saldo</div>
                 <div className="text-white font-semibold text-sm sm:text-base">R$ {formatBalance(apiBalance)}</div>
-                {balanceError && <div className="text-red-400 text-xs max-w-24 truncate">{balanceError}</div>}
+                {/* {balanceError && <div className="text-red-400 text-xs max-w-24 truncate">{balanceError}</div>} */}
               </div>
 
               <button
