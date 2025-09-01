@@ -46,7 +46,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido"
-      router.push("/login")
+      // router.push("/login")
       setBalanceError(errorMessage)
       // console.error("Erro ao buscar saldo:", err)
     } finally {
