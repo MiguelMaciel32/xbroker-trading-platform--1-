@@ -238,14 +238,14 @@ export default function DepositPage() {
               <span className="text-white">Configurações</span>
             </Link> */}
 
-            <Link
+            {/* <Link
               href="/account"
               className="flex items-center space-x-3 px-6 py-3 hover:bg-gray-700 transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <User className="h-5 w-5 text-gray-400" />
               <span className="text-white">Conta</span>
-            </Link>
+            </Link> */}
           </div>
         </div>
       )}
