@@ -35,7 +35,7 @@ export default function SaquePage() {
   const [user, setUser] = useState<any>(null)
 
   const [showKycModal, setShowKycModal] = useState(false)
-  const [kycStep, setKycStep] = useState(1) // 1: document selection, 2: document capture, 3: facial, 4: verification, 5: completed, 6: fees, 7: qr code
+  const [kycStep, setKycStep] = useState(1)
   const [selectedDocumentType, setSelectedDocumentType] = useState("rg")
   const [documentPhoto, setDocumentPhoto] = useState<string | null>(null)
   const [facialPhoto, setFacialPhoto] = useState<string | null>(null)
@@ -45,6 +45,7 @@ export default function SaquePage() {
 
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -89,6 +90,15 @@ export default function SaquePage() {
   useEffect(() => {
     fetchBalance()
   }, [fetchBalance])
+
+  // Limpar stream quando o componente desmonta ou modal fecha
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [stream])
 
   const handleWithdrawal = () => {
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
@@ -135,29 +145,60 @@ export default function SaquePage() {
 
   const startCamera = useCallback(async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      setCameraError(null)
+      
+      // Parar stream anterior se existir
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      const constraints = {
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: kycStep === 2 ? "environment" : "user", // Use back camera for document, front for selfie
+          width: { ideal: 640, max: 1920 },
+          height: { ideal: 480, max: 1080 },
+          facingMode: kycStep === 2 ? "environment" : "user", // Câmera traseira para documento, frontal para selfie
         },
-      })
+        audio: false
+      }
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
       setStream(mediaStream)
       setIsCameraActive(true)
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-        videoRef.current.play()
-      }
+      // Aguardar próximo frame antes de configurar o vídeo
+      setTimeout(() => {
+        if (videoRef.current && mediaStream) {
+          videoRef.current.srcObject = mediaStream
+          videoRef.current.onloadedmetadata = () => {
+            if (videoRef.current) {
+              videoRef.current.play().catch(console.error)
+            }
+          }
+        }
+      }, 100)
+
     } catch (error) {
       console.error("Erro ao acessar a câmera:", error)
+      let errorMessage = "Não foi possível acessar a câmera."
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = "Permissão de câmera negada. Permita o acesso à câmera."
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = "Nenhuma câmera encontrada no dispositivo."
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = "Câmera está sendo usada por outro aplicativo."
+        }
+      }
+      
+      setCameraError(errorMessage)
       toast({
         title: "Erro na câmera",
-        description: "Não foi possível acessar a câmera. Verifique as permissões.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
-  }, [toast, kycStep])
+  }, [toast, kycStep, stream])
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -165,39 +206,64 @@ export default function SaquePage() {
       setStream(null)
     }
     setIsCameraActive(false)
+    setCameraError(null)
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
   }, [stream])
 
   const capturePhoto = useCallback(() => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const context = canvas.getContext("2d")
-
-      if (context) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        context.drawImage(video, 0, 0)
-
-        const photoDataUrl = canvas.toDataURL("image/jpeg", 0.8)
-
-        if (kycStep === 2) {
-          setDocumentPhoto(photoDataUrl)
-          stopCamera()
-          setKycStep(3) // Go to facial capture
-        } else if (kycStep === 3) {
-          setFacialPhoto(photoDataUrl)
-          stopCamera()
-          setKycStep(4) // Go to verification
-          setIsVerifying(true)
-
-          setTimeout(() => {
-            setIsVerifying(false)
-            setKycStep(5) // Go to completed
-          }, 3000)
-        }
-      }
+    if (!videoRef.current || !canvasRef.current || !isCameraActive) {
+      toast({
+        title: "Erro na captura",
+        description: "Câmera não está ativa ou não foi possível capturar a foto.",
+        variant: "destructive",
+      })
+      return
     }
-  }, [stopCamera, kycStep])
+
+    const canvas = canvasRef.current
+    const video = videoRef.current
+    const context = canvas.getContext("2d")
+
+    if (context && video.videoWidth > 0 && video.videoHeight > 0) {
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      
+      // Para selfie, espelhar horizontalmente
+      if (kycStep === 3) {
+        context.scale(-1, 1)
+        context.drawImage(video, -video.videoWidth, 0)
+      } else {
+        context.drawImage(video, 0, 0)
+      }
+
+      const photoDataUrl = canvas.toDataURL("image/jpeg", 0.8)
+
+      if (kycStep === 2) {
+        setDocumentPhoto(photoDataUrl)
+        stopCamera()
+        setKycStep(3)
+      } else if (kycStep === 3) {
+        setFacialPhoto(photoDataUrl)
+        stopCamera()
+        setKycStep(4)
+        setIsVerifying(true)
+
+        setTimeout(() => {
+          setIsVerifying(false)
+          setKycStep(5)
+        }, 3000)
+      }
+    } else {
+      toast({
+        title: "Erro na captura",
+        description: "Vídeo ainda não está pronto. Tente novamente em alguns segundos.",
+        variant: "destructive",
+      })
+    }
+  }, [stopCamera, kycStep, isCameraActive, toast])
 
   const handleDocumentSelection = () => {
     setKycStep(2)
@@ -215,11 +281,9 @@ export default function SaquePage() {
     setKycStep(6)
   }
 
-  // ... existing code for completeWithdrawal, handleCreateKycPayment, copyPixCode, downloadQRCode ...
-
   const completeWithdrawal = async () => {
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
-    const kycFee = 495.0 // Fixed fee of R$ 495.00
+    const kycFee = 495.0
 
     try {
       await handleCreateKycPayment()
@@ -247,15 +311,13 @@ export default function SaquePage() {
     setQrCode(null)
 
     try {
-      const kycFee = 495.0 // Fixed KYC fee amount
+      const kycFee = 495.0
 
       if (!user?.email) {
         throw new Error("Usuário não encontrado. Faça login para continuar.")
       }
 
-      // Simulate API call for demo
       const qrCodeString = `00020126580014BR.GOV.BCB.PIX013636c4c14e-4b1c-4c1a-9b1a-1234567890120204000053039865802BR5925TAXA VERIFICACAO KYC6009SAO PAULO62070503***6304`
-
       const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
 
       setQrCode(qrCodeImageUrl)
@@ -294,10 +356,8 @@ export default function SaquePage() {
     setFacialPhoto(null)
     setQrCodeDataUrl(null)
     setPixPayload("")
-    setWithdrawalAmount("")
-    setPixKey("")
-    setAccountHolder("")
-    setAgreedToTerms(false)
+    setCameraError(null)
+    // Não limpar os campos de saque para preservar os dados inseridos
   }
 
   const getDocumentIcon = (type: string) => {
@@ -633,13 +693,25 @@ export default function SaquePage() {
                     <p className="text-[#848E9C] text-sm">Posicione o documento dentro da moldura e capture a foto</p>
                   </div>
 
+                  {cameraError && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{cameraError}</p>
+                    </div>
+                  )}
+
                   <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
                     <div className="aspect-[4/3] relative">
                       {isCameraActive ? (
-                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                        <video 
+                          ref={videoRef} 
+                          className="w-full h-full object-cover" 
+                          autoPlay 
+                          muted 
+                          playsInline 
+                        />
                       ) : documentPhoto ? (
                         <img
-                          src={documentPhoto || "/placeholder.svg"}
+                          src={documentPhoto}
                           alt="Documento capturado"
                           className="w-full h-full object-cover"
                         />
@@ -676,7 +748,8 @@ export default function SaquePage() {
                     {!documentPhoto ? (
                       <button
                         onClick={handleCameraCapture}
-                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors flex items-center justify-center gap-2"
+                        disabled={cameraError !== null}
+                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors flex items-center justify-center gap-2"
                       >
                         <Camera className="w-4 h-4" />
                         {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
@@ -722,6 +795,12 @@ export default function SaquePage() {
                     </p>
                   </div>
 
+                  {cameraError && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{cameraError}</p>
+                    </div>
+                  )}
+
                   <div className="relative bg-[#2B3139] rounded-lg p-8 text-center">
                     <div className="w-64 h-64 mx-auto border-4 border-[#FCD535] rounded-full overflow-hidden flex items-center justify-center relative bg-gray-900">
                       {isCameraActive ? (
@@ -738,7 +817,7 @@ export default function SaquePage() {
                         />
                       ) : facialPhoto ? (
                         <img
-                          src={facialPhoto || "/placeholder.svg"}
+                          src={facialPhoto}
                           alt="Foto facial"
                           className="w-full h-full object-cover scale-x-[-1]"
                         />
@@ -766,7 +845,8 @@ export default function SaquePage() {
                     {!facialPhoto ? (
                       <button
                         onClick={handleCameraCapture}
-                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
+                        disabled={cameraError !== null}
+                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors"
                       >
                         {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
                       </button>
@@ -807,7 +887,7 @@ export default function SaquePage() {
 
                       {facialPhoto && (
                         <img
-                          src={facialPhoto || "/placeholder.svg"}
+                          src={facialPhoto}
                           alt="Foto facial"
                           className="w-full h-full object-cover"
                         />
@@ -849,7 +929,6 @@ export default function SaquePage() {
                 </div>
               )}
 
-              {/* ... existing code for steps 6 and 7 (fees and QR code) ... */}
               {kycStep === 6 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white">Taxa de Verificação KYC</h3>
@@ -897,7 +976,7 @@ export default function SaquePage() {
                   </div>
 
                   <div className="bg-white rounded-lg p-4 text-center">
-                    {qrCode && <img src={qrCode || "/placeholder.svg"} alt="QR Code PIX" className="mx-auto mb-4" />}
+                    {qrCode && <img src={qrCode} alt="QR Code PIX" className="mx-auto mb-4" />}
                   </div>
 
                   <div className="bg-[#2B3139] rounded-lg p-4 space-y-3">
