@@ -302,7 +302,9 @@ export default function DepositPage() {
                   <a href="/deposit" className="text-white border-b-2 border-[#FCD535] pb-1 text-sm sm:text-base ">
                     Depositar
                   </a>
+                  <a href="/saque">
                   <button className="text-[#848E9C] hover:text-white text-sm sm:text-base">Saque</button>
+                  </a>
                 </nav>
               </div>
             </div>

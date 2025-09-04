@@ -61,7 +61,6 @@ function AdminPage() {
 
   const updateUserBalance = async (userId: string, balance: number) => {
     try {
-      console.log("[v0] Updating user balance:", userId, balance)
 
       const { error } = await supabase
         .from("user_profiles")

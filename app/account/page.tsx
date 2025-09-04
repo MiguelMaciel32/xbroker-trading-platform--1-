@@ -23,7 +23,7 @@ export default function AccountPage() {
 
   const [language, setLanguage] = useState("Português(BR)")
   const [timezone, setTimezone] = useState("(UTC+03:00)")
-  const [balance] = useState(10001.96)
+  // const [balance] = useState(10001.96)
 
   const SITE_CONFIG = {
     platformName: "TradePro",
