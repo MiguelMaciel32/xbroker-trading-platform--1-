@@ -18,9 +18,44 @@ import { getUserBalance } from "@/lib/actions/balance"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 
+class PixupBRService {
+  static async createPixPayment(data: {
+    amount: number
+    external_id: string
+    payerQuestion?: string
+    postbackUrl?: string
+    payer?: {
+      name?: string
+      document?: string
+      email?: string
+    }
+  }) {
+    try {
+      const response = await fetch("/api/pixupbr/qrcode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao criar pagamento PIX")
+      }
+
+      return result.data
+    } catch (error) {
+      console.error("Erro ao criar pagamento PIX:", error)
+      throw error
+    }
+  }
+}
+
+
 export default function SaquePage() {
   const { toast } = useToast()
-
   const [withdrawalAmount, setWithdrawalAmount] = useState("")
   const [pixKeyType, setPixKeyType] = useState("cpf")
   const [pixKey, setPixKey] = useState("")
@@ -42,6 +77,7 @@ export default function SaquePage() {
   const [isVerifying, setIsVerifying] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
   const [pixPayload, setPixPayload] = useState<string>("")
+
 
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -305,30 +341,54 @@ export default function SaquePage() {
     }
   }
 
-  const handleCreateKycPayment = async () => {
-    setLoading(true)
-    setError(null)
-    setQrCode(null)
+const handleCreateKycPayment = async () => {
+  setLoading(true)
+  setError(null)
+  setQrCode(null)
+setPixPayload("")
 
-    try {
-      const kycFee = 495.0
+  try {
+    const kycFee = 495.0
 
-      if (!user?.email) {
-        throw new Error("Usuário não encontrado. Faça login para continuar.")
-      }
-
-      const qrCodeString = `00020126580014BR.GOV.BCB.PIX013636c4c14e-4b1c-4c1a-9b1a-1234567890120204000053039865802BR5925TAXA VERIFICACAO KYC6009SAO PAULO62070503***6304`
-      const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
-
-      setQrCode(qrCodeImageUrl)
-      setPixPayload(qrCodeString)
-    } catch (error: any) {
-      console.error("Erro:", error)
-      setError(error.message || "Erro ao criar pagamento PIX para taxa KYC")
-    } finally {
-      setLoading(false)
+    if (!user?.email) {
+      throw new Error("Usuário não encontrado. Faça login para continuar.")
     }
+
+    // Criação de pagamento via PixupBR (mesma lógica do depósito)
+    const payment = await PixupBRService.createPixPayment({
+      amount: kycFee,
+      external_id: `${user.email}|kyc|${Date.now()}`,
+      payerQuestion: "Taxa de verificação KYC",
+      postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
+      payer: {
+        name: user.user_metadata?.full_name || "Usuário",
+        document: "12345678901", // depois pode puxar do cadastro
+        email: user.email,
+      },
+    })
+
+    // PIX copia e cola
+    const qrCodeString = payment.qrcode
+    const qrCodeImageUrl = qrCodeString
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+          qrCodeString
+        )}`
+      : null
+
+    setPixPayload(qrCodeString)
+    setQrCode(qrCodeImageUrl)
+
+    if (!qrCodeImageUrl && !qrCodeString) {
+      setError("QR Code não encontrado na resposta da API")
+    }
+  } catch (error: any) {
+    console.error("Erro:", error)
+    setError(error.message || "Erro ao criar pagamento PIX")
+  } finally {
+    setLoading(false)
   }
+}
+
 
   const copyPixCode = () => {
     navigator.clipboard.writeText(pixPayload)
