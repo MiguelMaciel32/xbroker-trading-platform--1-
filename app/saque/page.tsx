@@ -53,7 +53,6 @@ class PixupBRService {
   }
 }
 
-
 export default function SaquePage() {
   const { toast } = useToast()
   const [withdrawalAmount, setWithdrawalAmount] = useState("")
@@ -73,11 +72,11 @@ export default function SaquePage() {
   const [kycStep, setKycStep] = useState(1)
   const [selectedDocumentType, setSelectedDocumentType] = useState("rg")
   const [documentPhoto, setDocumentPhoto] = useState<string | null>(null)
+  const [documentBackPhoto, setDocumentBackPhoto] = useState<string | null>(null)
   const [facialPhoto, setFacialPhoto] = useState<string | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
   const [pixPayload, setPixPayload] = useState<string>("")
-
 
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -131,7 +130,7 @@ export default function SaquePage() {
   useEffect(() => {
     return () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+        stream.getTracks().forEach((track) => track.stop())
       }
     }
   }, [stream])
@@ -182,10 +181,10 @@ export default function SaquePage() {
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null)
-      
+
       // Parar stream anterior se existir
       if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+        stream.getTracks().forEach((track) => track.stop())
       }
 
       const constraints = {
@@ -194,7 +193,7 @@ export default function SaquePage() {
           height: { ideal: 480, max: 1080 },
           facingMode: kycStep === 2 ? "environment" : "user", // Câmera traseira para documento, frontal para selfie
         },
-        audio: false
+        audio: false,
       }
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -212,21 +211,20 @@ export default function SaquePage() {
           }
         }
       }, 100)
-
     } catch (error) {
       console.error("Erro ao acessar a câmera:", error)
       let errorMessage = "Não foi possível acessar a câmera."
-      
+
       if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
+        if (error.name === "NotAllowedError") {
           errorMessage = "Permissão de câmera negada. Permita o acesso à câmera."
-        } else if (error.name === 'NotFoundError') {
+        } else if (error.name === "NotFoundError") {
           errorMessage = "Nenhuma câmera encontrada no dispositivo."
-        } else if (error.name === 'NotReadableError') {
+        } else if (error.name === "NotReadableError") {
           errorMessage = "Câmera está sendo usada por outro aplicativo."
         }
       }
-      
+
       setCameraError(errorMessage)
       toast({
         title: "Erro na câmera",
@@ -243,32 +241,25 @@ export default function SaquePage() {
     }
     setIsCameraActive(false)
     setCameraError(null)
-    
+
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
   }, [stream])
 
   const capturePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || !isCameraActive) {
-      toast({
-        title: "Erro na captura",
-        description: "Câmera não está ativa ou não foi possível capturar a foto.",
-        variant: "destructive",
-      })
-      return
-    }
+    if (videoRef.current && canvasRef.current && isCameraActive) {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      const context = canvas.getContext("2d")
 
-    const canvas = canvasRef.current
-    const video = videoRef.current
-    const context = canvas.getContext("2d")
+      if (!context) return
 
-    if (context && video.videoWidth > 0 && video.videoHeight > 0) {
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
-      
+
       // Para selfie, espelhar horizontalmente
-      if (kycStep === 3) {
+      if (kycStep === 4) {
         context.scale(-1, 1)
         context.drawImage(video, -video.videoWidth, 0)
       } else {
@@ -280,16 +271,20 @@ export default function SaquePage() {
       if (kycStep === 2) {
         setDocumentPhoto(photoDataUrl)
         stopCamera()
-        setKycStep(3)
+        setKycStep(3) // Vai para captura do verso
       } else if (kycStep === 3) {
+        setDocumentBackPhoto(photoDataUrl)
+        stopCamera()
+        setKycStep(4) // Vai para selfie
+      } else if (kycStep === 4) {
         setFacialPhoto(photoDataUrl)
         stopCamera()
-        setKycStep(4)
+        setKycStep(5) // Era 4, agora é 5
         setIsVerifying(true)
 
         setTimeout(() => {
           setIsVerifying(false)
-          setKycStep(5)
+          setKycStep(6) // Era 5, agora é 6
         }, 3000)
       }
     } else {
@@ -314,7 +309,7 @@ export default function SaquePage() {
   }
 
   const proceedToFees = () => {
-    setKycStep(6)
+    setKycStep(7) // Era 6, agora é 7
   }
 
   const completeWithdrawal = async () => {
@@ -341,54 +336,51 @@ export default function SaquePage() {
     }
   }
 
-const handleCreateKycPayment = async () => {
-  setLoading(true)
-  setError(null)
-  setQrCode(null)
-setPixPayload("")
+  const handleCreateKycPayment = async () => {
+    setLoading(true)
+    setError(null)
+    setQrCode(null)
+    setPixPayload("")
 
-  try {
-    const kycFee = 495.0
+    try {
+      const kycFee = 495.0
 
-    if (!user?.email) {
-      throw new Error("Usuário não encontrado. Faça login para continuar.")
+      if (!user?.email) {
+        throw new Error("Usuário não encontrado. Faça login para continuar.")
+      }
+
+      // Criação de pagamento via PixupBR (mesma lógica do depósito)
+      const payment = await PixupBRService.createPixPayment({
+        amount: kycFee,
+        external_id: `${user.email}|kyc|${Date.now()}`,
+        payerQuestion: "Taxa de verificação KYC",
+        postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
+        payer: {
+          name: user.user_metadata?.full_name || "Usuário",
+          document: "12345678901", // depois pode puxar do cadastro
+          email: user.email,
+        },
+      })
+
+      // PIX copia e cola
+      const qrCodeString = payment.qrcode
+      const qrCodeImageUrl = qrCodeString
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
+        : null
+
+      setPixPayload(qrCodeString)
+      setQrCode(qrCodeImageUrl)
+
+      if (!qrCodeImageUrl && !qrCodeString) {
+        setError("QR Code não encontrado na resposta da API")
+      }
+    } catch (error: any) {
+      console.error("Erro:", error)
+      setError(error.message || "Erro ao criar pagamento PIX")
+    } finally {
+      setLoading(false)
     }
-
-    // Criação de pagamento via PixupBR (mesma lógica do depósito)
-    const payment = await PixupBRService.createPixPayment({
-      amount: kycFee,
-      external_id: `${user.email}|kyc|${Date.now()}`,
-      payerQuestion: "Taxa de verificação KYC",
-      postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
-      payer: {
-        name: user.user_metadata?.full_name || "Usuário",
-        document: "12345678901", // depois pode puxar do cadastro
-        email: user.email,
-      },
-    })
-
-    // PIX copia e cola
-    const qrCodeString = payment.qrcode
-    const qrCodeImageUrl = qrCodeString
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-          qrCodeString
-        )}`
-      : null
-
-    setPixPayload(qrCodeString)
-    setQrCode(qrCodeImageUrl)
-
-    if (!qrCodeImageUrl && !qrCodeString) {
-      setError("QR Code não encontrado na resposta da API")
-    }
-  } catch (error: any) {
-    console.error("Erro:", error)
-    setError(error.message || "Erro ao criar pagamento PIX")
-  } finally {
-    setLoading(false)
   }
-}
-
 
   const copyPixCode = () => {
     navigator.clipboard.writeText(pixPayload)
@@ -749,8 +741,10 @@ setPixPayload("")
               {kycStep === 2 && (
                 <div className="space-y-4">
                   <div className="text-center">
-                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento</h3>
-                    <p className="text-[#848E9C] text-sm">Posicione o documento dentro da moldura e capture a foto</p>
+                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento (frente)</h3>
+                    <p className="text-[#848E9C] text-sm">
+                      Posicione a frente do documento dentro da moldura e capture a foto
+                    </p>
                   </div>
 
                   {cameraError && (
@@ -762,16 +756,10 @@ setPixPayload("")
                   <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
                     <div className="aspect-[4/3] relative">
                       {isCameraActive ? (
-                        <video 
-                          ref={videoRef} 
-                          className="w-full h-full object-cover" 
-                          autoPlay 
-                          muted 
-                          playsInline 
-                        />
+                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                       ) : documentPhoto ? (
                         <img
-                          src={documentPhoto}
+                          src={documentPhoto || "/placeholder.svg"}
                           alt="Documento capturado"
                           className="w-full h-full object-cover"
                         />
@@ -817,15 +805,6 @@ setPixPayload("")
                     ) : (
                       <div className="space-y-2">
                         <button
-                          onClick={() => {
-                            setDocumentPhoto(null)
-                            startCamera()
-                          }}
-                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                        >
-                          Tirar Novamente
-                        </button>
-                        <button
                           onClick={() => setKycStep(3)}
                           className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
                         >
@@ -833,8 +812,95 @@ setPixPayload("")
                         </button>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
 
-                    {isCameraActive && !documentPhoto && (
+              {kycStep === 3 && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento (verso)</h3>
+                    <p className="text-[#848E9C] text-sm">
+                      Agora posicione o verso do documento dentro da moldura e capture a foto
+                    </p>
+                  </div>
+
+                  {cameraError && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">{cameraError}</p>
+                    </div>
+                  )}
+
+                  <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
+                    <div className="aspect-[4/3] relative">
+                      {isCameraActive ? (
+                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                      ) : documentBackPhoto ? (
+                        <img
+                          src={documentBackPhoto || "/placeholder.svg"}
+                          alt="Verso do documento capturado"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                          <div className="text-center">
+                            {getDocumentIcon(selectedDocumentType)}
+                            <p className="text-[#848E9C] text-sm mt-2">Clique para ativar a câmera</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {isCameraActive && (
+                        <div className="absolute inset-4 pointer-events-none">
+                          <div className="w-full h-full border-2 border-white/60 rounded-lg relative">
+                            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
+                            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
+                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
+                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-white text-xs bg-black/70 px-3 py-1 rounded-full">
+                                Centralize o verso do documento
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <canvas ref={canvasRef} className="hidden" />
+
+                  <div className="space-y-2">
+                    {!documentBackPhoto ? (
+                      <button
+                        onClick={handleCameraCapture}
+                        disabled={cameraError !== null}
+                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Camera className="w-4 h-4" />
+                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => {
+                            setDocumentBackPhoto(null)
+                            startCamera()
+                          }}
+                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
+                        >
+                          Tirar Novamente
+                        </button>
+                        <button
+                          onClick={() => setKycStep(4)}
+                          className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
+                        >
+                          Continuar para Selfie
+                        </button>
+                      </div>
+                    )}
+
+                    {isCameraActive && !documentBackPhoto && (
                       <button
                         onClick={stopCamera}
                         className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
@@ -846,7 +912,7 @@ setPixPayload("")
                 </div>
               )}
 
-              {kycStep === 3 && (
+              {kycStep === 4 && (
                 <div className="space-y-4">
                   <div className="text-center">
                     <h3 className="text-lg font-medium text-white mb-2">Verificação Facial</h3>
@@ -877,7 +943,7 @@ setPixPayload("")
                         />
                       ) : facialPhoto ? (
                         <img
-                          src={facialPhoto}
+                          src={facialPhoto || "/placeholder.svg"}
                           alt="Foto facial"
                           className="w-full h-full object-cover scale-x-[-1]"
                         />
@@ -936,7 +1002,7 @@ setPixPayload("")
                 </div>
               )}
 
-              {kycStep === 4 && (
+              {kycStep === 5 && (
                 <div className="space-y-4 text-center">
                   <div className="relative">
                     <div className="w-48 h-48 mx-auto border-4 border-[#FCD535] rounded-lg overflow-hidden relative">
@@ -947,7 +1013,7 @@ setPixPayload("")
 
                       {facialPhoto && (
                         <img
-                          src={facialPhoto}
+                          src={facialPhoto || "/placeholder.svg"}
                           alt="Foto facial"
                           className="w-full h-full object-cover"
                         />
@@ -974,7 +1040,7 @@ setPixPayload("")
                 </div>
               )}
 
-              {kycStep === 5 && (
+              {kycStep === 6 && (
                 <div className="space-y-4 text-center">
                   <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
                   <h3 className="text-lg font-medium text-white mb-2">Verificação Concluída!</h3>
@@ -989,7 +1055,7 @@ setPixPayload("")
                 </div>
               )}
 
-              {kycStep === 6 && (
+              {kycStep === 7 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white">Taxa de Verificação KYC</h3>
 
@@ -1036,7 +1102,7 @@ setPixPayload("")
                   </div>
 
                   <div className="bg-white rounded-lg p-4 text-center">
-                    {qrCode && <img src={qrCode} alt="QR Code PIX" className="mx-auto mb-4" />}
+                    {qrCode && <img src={qrCode || "/placeholder.svg"} alt="QR Code PIX" className="mx-auto mb-4" />}
                   </div>
 
                   <div className="bg-[#2B3139] rounded-lg p-4 space-y-3">
