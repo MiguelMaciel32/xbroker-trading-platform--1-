@@ -93,7 +93,7 @@ export default function DepositPage() {
 
   const isAmountValid = () => {
     const amount = Number.parseFloat(depositAmount.replace(",", "."))
-    return amount >= 100 && amount <= 54690
+    return amount >= 0 && amount <= 54690
   }
 
   const copyPixCode = async () => {
@@ -402,11 +402,11 @@ export default function DepositPage() {
                               className="w-full pl-10 pr-4 py-3 bg-[#2B3139] border border-[#2B3139] text-white placeholder-[#848E9C] focus:border-[#FCD535] focus:outline-none"
                             />
                           </div>
-                          <div className="text-[#848E9C] text-xs mt-1">Mínimo: R$ 100,00 | Máximo: R$ 54.690,00</div>
+                          <div className="text-[#848E9C] text-xs mt-1">Mínimo: R$ 1,00 | Máximo: R$ 54.690,00</div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
-                          {["100", "500", "900"].map((amount) => (
+                          {["1", "500", "900"].map((amount) => (
                             <button
                               key={amount}
                               onClick={() => setDepositAmount(amount)}
