@@ -1,178 +1,68 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
-import {
-  ChevronDown,
-  ExternalLink,
-  Camera,
-  CheckCircle,
-  X,
-  Copy,
-  Download,
-  FileText,
-  CreditCard,
-  Award as IdCard,
-} from "lucide-react"
-import TradingHeader from "@/components/trading-header"
-import { getUserBalance } from "@/lib/actions/balance"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase/client"
-
-class PixupBRService {
-  static async createPixPayment(data: {
-    amount: number
-    external_id: string
-    payerQuestion?: string
-    postbackUrl?: string
-    payer?: {
-      name?: string
-      document?: string
-      email?: string
-    }
-  }) {
-    try {
-      const response = await fetch("/api/pixupbr/qrcode", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao criar pagamento PIX")
-      }
-
-      return result.data
-    } catch (error) {
-      console.error("Erro ao criar pagamento PIX:", error)
-      throw error
-    }
-  }
-}
+import React, { useState, useEffect, useCallback, useRef } from "react"
+import { X, Copy, AlertTriangle, Shield, Camera, Upload, CheckCircle } from "lucide-react"
 
 export default function SaquePage() {
-  const { toast } = useToast()
-  const [withdrawalAmount, setWithdrawalAmount] = useState("")
-  const [pixKeyType, setPixKeyType] = useState("cpf")
+  const [withdrawalAmount, setWithdrawalAmount] = useState("200")
   const [pixKey, setPixKey] = useState("")
-  const [accountHolder, setAccountHolder] = useState("")
   const [agreedToTerms, setAgreedToTerms] = useState(false)
-  const [balance, setBalance] = useState(0)
-  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
-  const [balanceError, setBalanceError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [balance, setBalance] = useState(5000) // Simulado
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false)
+  const [user, setUser] = useState({ id: '1' }) // Simulado
+
+  // Estados para o popup de taxa de segurança
+  const [showSecurityTaxModal, setShowSecurityTaxModal] = useState(false)
+  const [taxStep, setTaxStep] = useState(1)
   const [qrCode, setQrCode] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
+  const [pixPayload, setPixPayload] = useState<string>("")
+  const [loading, setLoading] = useState(false)
 
   const [showKycModal, setShowKycModal] = useState(false)
   const [kycStep, setKycStep] = useState(1)
-  const [selectedDocumentType, setSelectedDocumentType] = useState("rg")
-  const [documentPhoto, setDocumentPhoto] = useState<string | null>(null)
-  const [documentBackPhoto, setDocumentBackPhoto] = useState<string | null>(null)
-  const [facialPhoto, setFacialPhoto] = useState<string | null>(null)
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
-  const [pixPayload, setPixPayload] = useState<string>("")
-
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [isCameraActive, setIsCameraActive] = useState(false)
-  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [documentType, setDocumentType] = useState("")
+  const [documentFront, setDocumentFront] = useState<string | null>(null)
+  const [documentBack, setDocumentBack] = useState<string | null>(null)
+  const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisComplete, setAnalysisComplete] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
+  const [captureMode, setCaptureMode] = useState<"front" | "back" | "selfie" | null>(null)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      setIsLoadingBalance(true)
-      setBalanceError(null)
+  const predefinedAmounts = [200, 1000, 2000, 100, 500, 1500, 4000]
 
-      const result = await getUserBalance()
+  const handleAmountSelect = (amount: number) => {
+    setWithdrawalAmount(amount.toString())
+  }
 
-      if (!result.success || !result.data) {
-        throw new Error(result.error || "Erro na resposta da API")
-      }
-
-      setBalance(result.data.balance)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido"
-      setBalanceError(errorMessage)
-      console.error("Erro ao buscar saldo:", err)
-    } finally {
-      setIsLoadingBalance(false)
-    }
-  }, [])
-
-  const handleBalanceUpdate = useCallback((newBalance: number) => {
-    setBalance(newBalance)
-  }, [])
-
-  useEffect(() => {
-    const supabase = createClient()
-
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
-    }
-
-    getUser()
-  }, [])
-
-  useEffect(() => {
-    fetchBalance()
-  }, [fetchBalance])
-
-  // Limpar stream quando o componente desmonta ou modal fecha
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop())
-      }
-    }
-  }, [stream])
-
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+  const showToast = (title: string, description: string, variant: "default" | "destructive" = "default") => {
+    console.log(`Toast: ${title} - ${description}`)
+  }
 
   const handleWithdrawal = () => {
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
 
-    if (!withdrawalAmount || !pixKey || !accountHolder || !agreedToTerms) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      })
+    if (!withdrawalAmount || !pixKey || !agreedToTerms) {
+      showToast("Campos obrigatórios", "Por favor, preencha todos os campos obrigatórios.", "destructive")
       return
     }
 
     if (withdrawalValue <= 0) {
-      toast({
-        title: "Valor inválido",
-        description: "O valor do saque deve ser maior que zero.",
-        variant: "destructive",
-      })
+      showToast("Valor inválido", "O valor do saque deve ser maior que zero.", "destructive")
       return
     }
 
     if (withdrawalValue > balance) {
-      toast({
-        title: "Saldo insuficiente",
-        description: `Seu saldo atual é R$ ${balance.toFixed(2)}`,
-        variant: "destructive",
-      })
+      showToast("Saldo insuficiente", `Seu saldo atual é R$ ${balance.toFixed(2)}`, "destructive")
       return
     }
 
     if (withdrawalValue < 10) {
-      toast({
-        title: "Valor mínimo",
-        description: "O valor mínimo para saque é R$ 10,00",
-        variant: "destructive",
-      })
+      showToast("Valor mínimo", "O valor mínimo para saque é R$ 10,00", "destructive")
       return
     }
 
@@ -180,194 +70,145 @@ export default function SaquePage() {
     setKycStep(1)
   }
 
-  const startCamera = useCallback(async () => {
+  const startCamera = async (mode: "front" | "back" | "selfie") => {
+    setCaptureMode(mode)
+    setCameraError(null)
+    
     try {
-      setCameraError(null)
-
-      // Parar stream anterior se existir
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop())
+      // Para a stream anterior se existir
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
       }
 
       const constraints = {
-        video: {
-          width: { ideal: 640, max: 1920 },
-          height: { ideal: 480, max: 1080 },
-          facingMode: kycStep === 2 ? "environment" : "user", // Câmera traseira para documento, frontal para selfie
-        },
-        audio: false,
+        video: { 
+          facingMode: mode === "selfie" ? "user" : "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
-      setStream(mediaStream)
-      setIsCameraActive(true)
-
-      // Aguardar próximo frame antes de configurar o vídeo
-      setTimeout(() => {
-        if (videoRef.current && mediaStream) {
-          videoRef.current.srcObject = mediaStream
-          videoRef.current.onloadedmetadata = () => {
-            if (videoRef.current) {
-              videoRef.current.play().catch(console.error)
-            }
-          }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(error => {
+            console.error("Erro ao reproduzir vídeo:", error)
+            setCameraError("Erro ao iniciar preview da câmera")
+          })
         }
-      }, 100)
+        setIsCameraActive(true)
+      }
     } catch (error) {
-      console.error("Erro ao acessar a câmera:", error)
-      let errorMessage = "Não foi possível acessar a câmera."
+      console.error("Erro da câmera:", error)
+      setCameraError("Não foi possível acessar a câmera. Verifique as permissões.")
+      setIsCameraActive(false)
+    }
+  }
 
-      if (error instanceof Error) {
-        if (error.name === "NotAllowedError") {
-          errorMessage = "Permissão de câmera negada. Permita o acesso à câmera."
-        } else if (error.name === "NotFoundError") {
-          errorMessage = "Nenhuma câmera encontrada no dispositivo."
-        } else if (error.name === "NotReadableError") {
-          errorMessage = "Câmera está sendo usada por outro aplicativo."
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current && videoRef.current.videoWidth > 0) {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      
+      const ctx = canvas.getContext("2d")
+      if (ctx) {
+        ctx.drawImage(video, 0, 0)
+        const imageData = canvas.toDataURL("image/jpeg", 0.8)
+
+        if (captureMode === "front") {
+          setDocumentFront(imageData)
+        } else if (captureMode === "back") {
+          setDocumentBack(imageData)
+        } else if (captureMode === "selfie") {
+          setSelfiePhoto(imageData)
         }
+
+        stopCamera()
+        showToast("Foto capturada!", "Foto capturada com sucesso.")
       }
-
-      setCameraError(errorMessage)
-      toast({
-        title: "Erro na câmera",
-        description: errorMessage,
-        variant: "destructive",
-      })
+    } else {
+      setCameraError("Erro ao capturar foto. Tente novamente.")
     }
-  }, [toast, kycStep, stream])
+  }
 
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
     }
-    setIsCameraActive(false)
-    setCameraError(null)
-
+    
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
-  }, [stream])
-
-  const capturePhoto = useCallback(() => {
-    if (videoRef.current && canvasRef.current && isCameraActive) {
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      const context = canvas.getContext("2d")
-
-      if (!context) return
-
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-
-      // Para selfie, espelhar horizontalmente
-      if (kycStep === 4) {
-        context.scale(-1, 1)
-        context.drawImage(video, -video.videoWidth, 0)
-      } else {
-        context.drawImage(video, 0, 0)
-      }
-
-      const photoDataUrl = canvas.toDataURL("image/jpeg", 0.8)
-
-      if (kycStep === 2) {
-        setDocumentPhoto(photoDataUrl)
-        stopCamera()
-        setKycStep(3) // Vai para captura do verso
-      } else if (kycStep === 3) {
-        setDocumentBackPhoto(photoDataUrl)
-        stopCamera()
-        setKycStep(4) // Vai para selfie
-      } else if (kycStep === 4) {
-        setFacialPhoto(photoDataUrl)
-        stopCamera()
-        setKycStep(5) // Era 4, agora é 5
-        setIsVerifying(true)
-
-        setTimeout(() => {
-          setIsVerifying(false)
-          setKycStep(6) // Era 5, agora é 6
-        }, 3000)
-      }
-    } else {
-      toast({
-        title: "Erro na captura",
-        description: "Vídeo ainda não está pronto. Tente novamente em alguns segundos.",
-        variant: "destructive",
-      })
-    }
-  }, [stopCamera, kycStep, isCameraActive, toast])
-
-  const handleDocumentSelection = () => {
-    setKycStep(2)
+    
+    setIsCameraActive(false)
+    setCaptureMode(null)
+    setCameraError(null)
   }
 
-  const handleCameraCapture = () => {
-    if (!isCameraActive) {
-      startCamera()
-    } else {
-      capturePhoto()
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: "front" | "back" | "selfie") => {
+    const file = event.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        showToast("Arquivo muito grande", "O arquivo deve ter no máximo 5MB.", "destructive")
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        if (type === "front") {
+          setDocumentFront(result)
+        } else if (type === "back") {
+          setDocumentBack(result)
+        } else if (type === "selfie") {
+          setSelfiePhoto(result)
+        }
+        showToast("Arquivo enviado!", "Imagem carregada com sucesso.")
+      }
+      reader.onerror = () => {
+        showToast("Erro ao carregar", "Não foi possível carregar a imagem.", "destructive")
+      }
+      reader.readAsDataURL(file)
     }
   }
 
-  const proceedToFees = () => {
-    setKycStep(7) // Era 6, agora é 7
+  const analyzeDocuments = async () => {
+    setIsAnalyzing(true)
+    // Simulate analysis
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    setAnalysisComplete(true)
+    setIsAnalyzing(false)
+
+    showToast("Verificação concluída!", "Documentos verificados com sucesso.")
+
+    // After KYC is complete, show security tax modal
+    setTimeout(() => {
+      setShowKycModal(false)
+      setShowSecurityTaxModal(true)
+      setTaxStep(1)
+    }, 2000)
   }
 
-  const [pixCode, setPixCode] = useState<string>("")
-
-  const completeWithdrawal = () => {
-    setShowPaymentDialog(true)
-
-    // Generate QR code and PIX code
-    const pixCode = `00020126580014BR.GOV.BCB.PIX013636c4e1c4-7e4b-4c4a-9f4a-8d2e3f1a5b6c52040000530398654054950.005802BR5925PIXUP SERVICOS DIGITAIS6009SAO PAULO62070503***6304`
-    setPixCode(pixCode)
-    setQrCode(
-      `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`,
-    )
-  }
-
-  const handleCreateKycPayment = async () => {
+  const handleSecurityTaxPayment = async () => {
     setLoading(true)
-    setError(null)
-    setQrCode(null)
-    setPixPayload("")
-
     try {
-      const kycFee = 495.0
+      // Simular geração de QR Code para taxa de segurança
+      const mockPixCode = "00020126580014BR.GOV.BCB.PIX0136123e4567-e12b-12d1-a456-426614174000520400005303986540549700"
+      const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mockPixCode)}`
 
-      if (!user?.email) {
-        throw new Error("Usuário não encontrado. Faça login para continuar.")
-      }
-
-      // Criação de pagamento via PixupBR (mesma lógica do depósito)
-      const payment = await PixupBRService.createPixPayment({
-        amount: kycFee,
-        external_id: `${user.email}|kyc|${Date.now()}`,
-        payerQuestion: "Taxa de verificação KYC",
-        postbackUrl: `${window.location.origin}/api/pixupbr/webhook`,
-        payer: {
-          name: user.user_metadata?.full_name || "Usuário",
-          document: "12345678901", // depois pode puxar do cadastro
-          email: user.email,
-        },
-      })
-
-      // PIX copia e cola
-      const qrCodeString = payment.qrcode
-      const qrCodeImageUrl = qrCodeString
-        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeString)}`
-        : null
-
-      setPixPayload(qrCodeString)
+      setPixPayload(mockPixCode)
       setQrCode(qrCodeImageUrl)
-
-      if (!qrCodeImageUrl && !qrCodeString) {
-        setError("QR Code não encontrado na resposta da API")
-      }
-    } catch (error: any) {
+      setTaxStep(2)
+    } catch (error) {
       console.error("Erro:", error)
-      setError(error.message || "Erro ao criar pagamento PIX")
+      showToast("Erro", "Erro ao gerar pagamento PIX", "destructive")
     } finally {
       setLoading(false)
     }
@@ -375,777 +216,662 @@ export default function SaquePage() {
 
   const copyPixCode = () => {
     navigator.clipboard.writeText(pixPayload)
-    toast({
-      title: "Código copiado!",
-      description: "Código PIX copiado para a área de transferência.",
-      className: "bg-[#1E2329] border-[#FCD535] text-white",
-    })
+    showToast("Código copiado!", "Código PIX copiado para a área de transferência.")
   }
 
-  const downloadQRCode = () => {
-    if (qrCode) {
-      const link = document.createElement("a")
-      link.download = `qr-code-pix-${Date.now()}.png`
-      link.href = qrCode
-      link.click()
-    }
+  const closeSecurityTaxModal = () => {
+    setShowSecurityTaxModal(false)
+    setTaxStep(1)
+    setQrCode(null)
+    setPixPayload("")
   }
 
   const closeKycModal = () => {
-    stopCamera()
     setShowKycModal(false)
     setKycStep(1)
-    setDocumentPhoto(null)
-    setFacialPhoto(null)
-    setQrCodeDataUrl(null)
-    setPixPayload("")
-    setCameraError(null)
-    // Não limpar os campos de saque para preservar os dados inseridos
+    setDocumentType("")
+    setDocumentFront(null)
+    setDocumentBack(null)
+    setSelfiePhoto(null)
+    setAnalysisComplete(false)
+    stopCamera()
   }
 
-  const getDocumentIcon = (type: string) => {
-    switch (type) {
-      case "rg":
-        return <IdCard className="w-8 h-8" />
-      case "cnh":
-        return <CreditCard className="w-8 h-8" />
-      case "passaporte":
-        return <FileText className="w-8 h-8" />
-      default:
-        return <IdCard className="w-8 h-8" />
+  // Cleanup ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      stopCamera()
     }
-  }
+  }, [])
 
-  const getDocumentName = (type: string) => {
-    switch (type) {
-      case "rg":
-        return "Carteira de identidade"
-      case "cnh":
-        return "Carteira de habilitação"
-      case "passaporte":
-        return "Passaporte"
-      default:
-        return "Documento"
-    }
+  const CameraPreview = ({ mode }: { mode: "front" | "back" | "selfie" }) => {
+    return (
+      <div className="relative bg-black rounded-lg overflow-hidden">
+        {cameraError ? (
+          <div className="w-full h-64 flex items-center justify-center bg-red-900/20 border border-red-500/20 rounded-lg">
+            <div className="text-center">
+              <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+              <p className="text-red-400 text-sm">{cameraError}</p>
+              <button
+                onClick={() => startCamera(mode)}
+                className="mt-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted
+              className="w-full h-64 object-cover bg-black"
+              style={{ transform: mode === "selfie" ? "scaleX(-1)" : "none" }}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            {/* Overlay para selfie com contorno do rosto */}
+            {mode === "selfie" && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <svg width="180" height="220" viewBox="0 0 180 220" className="opacity-80">
+                  <ellipse
+                    cx="90"
+                    cy="110"
+                    rx="70"
+                    ry="85"
+                    fill="none"
+                    stroke="#26d47c"
+                    strokeWidth="3"
+                    strokeDasharray="8,4"
+                  />
+                  <circle cx="70" cy="90" r="3" fill="#26d47c" opacity="0.6" />
+                  <circle cx="110" cy="90" r="3" fill="#26d47c" opacity="0.6" />
+                  <line x1="90" y1="100" x2="90" y2="115" stroke="#26d47c" strokeWidth="2" opacity="0.6" />
+                  <path
+                    d="M 75 130 Q 90 140 105 130"
+                    fill="none"
+                    stroke="#26d47c"
+                    strokeWidth="2"
+                    opacity="0.6"
+                  />
+                </svg>
+              </div>
+            )}
+
+            {/* Status indicator */}
+            <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              CÂMERA ATIVA
+            </div>
+
+            {/* Instructions overlay */}
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 rounded-lg px-3 py-2">
+              <p className="text-white text-xs text-center">
+                {mode === "selfie" 
+                  ? "Posicione seu rosto dentro do contorno verde"
+                  : `Posicione o ${mode === "front" ? "frente" : "verso"} do documento na tela`
+                }
+              </p>
+            </div>
+
+            {/* Controls */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3">
+              <button
+                onClick={capturePhoto}
+                className="bg-[#26d47c] text-black px-6 py-2 rounded-full font-medium text-sm hover:bg-[#22c470] transition-colors flex items-center gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                Capturar
+              </button>
+              <button
+                onClick={stopCamera}
+                className="bg-red-500 text-white px-6 py-2 rounded-full font-medium text-sm hover:bg-red-600 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
-      <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
-
-      <div className="pt-16">
-        <header className="bg-[#1E2329] border-b border-[#2B3139]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center justify-between">
-              <nav className="flex items-center space-x-4 sm:space-x-8">
-                <a href="/deposit" className="text-[#848E9C] hover:text-white text-sm sm:text-base">
-                  Depositar
-                </a>
-                <button className="text-white border-b-2 border-[#FCD535] pb-1 text-sm sm:text-base">Saque</button>
-              </nav>
-            </div>
+    <div className="min-h-screen bg-[#141d2f] text-white">
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <div className="text-sm text-[#848E9C] mb-2">
+            <span className="hover:text-white cursor-pointer">Método de saque</span>
+            <span className="mx-2">›</span>
+            <span className="text-white font-medium">PIX</span>
           </div>
-        </header>
+        </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
-          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-            <div className="flex-1 max-w-none lg:max-w-2xl">
-              <h1 className="text-xl sm:text-2xl font-semibold text-white mb-6 sm:mb-8">Saque BRL</h1>
-
-              <div className="mb-4 sm:mb-6">
-                <label className="block text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">Valor do Saque</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={withdrawalAmount}
-                    onChange={(e) => setWithdrawalAmount(e.target.value)}
-                    placeholder="0.00"
-                    min="10"
-                    max={balance}
-                    className="w-full bg-[#2B3139] border border-[#2B3139] rounded-lg p-3 sm:p-4 text-white placeholder-[#848E9C] focus:border-[#FCD535] focus:outline-none text-sm sm:text-base"
-                  />
-                  <span className="absolute right-3 sm:right-4 top-3 sm:top-4 text-[#848E9C] text-sm sm:text-sm mt-2">
-                    BRL
-                  </span>
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-[#101825] rounded-lg p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-[#26d47c] rounded flex items-center justify-center text-black font-bold text-xs">
+                  PIX
                 </div>
-                <div className="text-[#848E9C] text-xs sm:text-sm mt-2">
-                  {isLoadingBalance ? (
-                    "Carregando saldo..."
-                  ) : balanceError ? (
-                    <span className="text-red-400">Erro ao carregar saldo</span>
-                  ) : (
-                    <>
-                      Saldo disponível: R$ {balance.toFixed(2)}
-                      <br />
-                      <span className="text-yellow-400">Valor mínimo: R$ 10,00</span>
-                    </>
-                  )}
+              </div>
+              <h2 className="text-2xl font-bold text-white">PIX</h2>
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-6">
+              <p className="text-blue-400 text-sm">
+                Após a solicitação, o valor do saque será creditado em sua conta em até 72 horas.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Valor do saque */}
+              <div>
+                <label className="block text-white font-medium mb-3">Valor do saque</label>
+                <input
+                  type="text"
+                  value={`R$ ${withdrawalAmount}`}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^\d]/g, "")
+                    setWithdrawalAmount(value)
+                  }}
+                  className="w-full p-3 bg-[#1a2332] border border-[#2B3139] rounded-lg text-white focus:border-[#26d47c] focus:outline-none"
+                />
+
+                <div className="grid grid-cols-4 gap-2 mt-3">
+                  {predefinedAmounts.map((amount) => (
+                    <button
+                      key={amount}
+                      onClick={() => handleAmountSelect(amount)}
+                      className={`p-2 rounded-lg text-sm font-medium transition-colors ${
+                        withdrawalAmount === amount.toString()
+                          ? "bg-[#26d47c] text-black"
+                          : "bg-[#2B3139] text-white hover:bg-[#434C5A]"
+                      }`}
+                    >
+                      R$ {amount.toLocaleString()}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="mb-4 sm:mb-6">
-                <label className="block text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">
-                  Tipo de Chave PIX
-                </label>
-                <div className="relative">
-                  <select
-                    value={pixKeyType}
-                    onChange={(e) => setPixKeyType(e.target.value)}
-                    className="w-full bg-[#2B3139] border border-[#2B3139] rounded-lg p-3 sm:p-4 text-white focus:border-[#FCD535] focus:outline-none appearance-none text-sm sm:text-base"
-                  >
-                    <option value="cpf">CPF</option>
-                    <option value="email">E-mail</option>
-                    <option value="telefone">Telefone</option>
-                    <option value="aleatoria">Chave Aleatória</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 sm:right-4 top-3 sm:top-4 h-4 w-4 sm:h-5 sm:w-5 text-[#848E9C] pointer-events-none" />
-                </div>
-              </div>
-
-              <div className="mb-4 sm:mb-6">
-                <label className="block text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">Chave PIX</label>
+              {/* Chave PIX */}
+              <div>
+                <label className="block text-white font-medium mb-3">Chave PIX para receber</label>
                 <input
                   type="text"
                   value={pixKey}
                   onChange={(e) => setPixKey(e.target.value)}
-                  placeholder={
-                    pixKeyType === "cpf"
-                      ? "000.000.000-00"
-                      : pixKeyType === "email"
-                        ? "seu@email.com"
-                        : pixKeyType === "telefone"
-                          ? "(11) 99999-9999"
-                          : "Chave aleatória"
-                  }
-                  className="w-full bg-[#2B3139] border border-[#2B3139] rounded-lg p-3 sm:p-4 text-white placeholder-[#848E9C] focus:border-[#FCD535] focus:outline-none text-sm sm:text-base"
+                  placeholder="CPF, e-mail, telefone..."
+                  className="w-full p-3 bg-[#1a2332] border border-[#2B3139] rounded-lg text-white placeholder-[#848E9C] focus:border-[#26d47c] focus:outline-none"
                 />
               </div>
-
-              <div className="mb-4 sm:mb-6">
-                <label className="block text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">
-                  Nome do Titular
-                </label>
-                <input
-                  type="text"
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value)}
-                  placeholder="Nome completo do titular da conta"
-                  className="w-full bg-[#2B3139] border border-[#2B3139] rounded-lg p-3 sm:p-4 text-white placeholder-[#848E9C] focus:border-[#FCD535] focus:outline-none text-sm sm:text-base"
-                />
-              </div>
-
-              <div className="mb-6 sm:mb-8">
-                <label className="flex items-start space-x-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="mt-1 w-4 h-4 text-[#FCD535] bg-[#2B3139] border-[#2B3139] rounded focus:ring-[#FCD535] focus:ring-2 flex-shrink-0"
-                  />
-                  <span className="text-[#848E9C] text-xs sm:text-sm leading-relaxed">
-                    Eu li e concordo com os{" "}
-                    <button className="text-[#FCD535] hover:underline">Termos e Condições</button> para saque.
-                  </span>
-                </label>
-              </div>
-
-              <button
-                onClick={handleWithdrawal}
-                className={`w-full py-3 sm:py-4 rounded-lg font-medium text-black transition-colors text-sm sm:text-base ${
-                  withdrawalAmount && pixKey && accountHolder && agreedToTerms && !isLoadingBalance
-                    ? "bg-[#FCD535] hover:bg-[#F0C419]"
-                    : "bg-[#434C5A] cursor-not-allowed"
-                }`}
-                disabled={!withdrawalAmount || !pixKey || !accountHolder || !agreedToTerms || isLoadingBalance}
-              >
-                {isLoadingBalance ? "Carregando..." : "Solicitar Saque"}
-              </button>
             </div>
 
-            <div className="w-full lg:w-80 mt-6 lg:mt-0">
-              <div className="bg-[#1E2329] rounded-lg p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-medium text-white mb-4 sm:mb-6">FAQ - Perguntas frequentes</h3>
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-6 h-6 bg-[#2B3139] rounded-full flex items-center justify-center text-[#848E9C] text-sm font-medium flex-shrink-0">
-                      1
-                    </div>
-                    <div className="flex-1">
-                      <button className="text-left text-white hover:text-[#FCD535] flex items-center justify-between w-full group text-sm sm:text-base">
-                        <span>Quanto tempo demora para processar um saque?</span>
-                        <svg
-                          className="w-4 h-4 text-[#848E9C] group-hover:text-[#FCD535] flex-shrink-0 ml-2"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+            <div className="mt-6">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="w-4 h-4 text-[#26d47c] bg-[#2B3139] border-[#434C5A] rounded focus:ring-[#26d47c] focus:ring-2"
+                />
+                <span className="text-[#848E9C] text-sm">Eu, por meio deste, aceito os Termos e Condições</span>
+              </label>
+            </div>
 
-                  <div className="flex items-start space-x-3">
-                    <div className="w-6 h-6 bg-[#2B3139] rounded-full flex items-center justify-center text-[#848E9C] text-sm font-medium flex-shrink-0">
-                      2
-                    </div>
-                    <div className="flex-1">
-                      <button className="text-left text-white hover:text-[#FCD535] flex items-center justify-between w-full group text-sm sm:text-base">
-                        <span>Quais são as taxas de saque?</span>
-                        <ExternalLink className="w-4 h-4 text-[#848E9C] group-hover:text-[#FCD535] flex-shrink-0 ml-2" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3">
-                    <div className="w-6 h-6 bg-[#2B3139] rounded-full flex items-center justify-center text-[#848E9C] text-sm font-medium flex-shrink-0">
-                      3
-                    </div>
-                    <div className="flex-1">
-                      <button className="text-left text-white hover:text-[#FCD535] flex items-center justify-between w-full group text-sm sm:text-base">
-                        <span>Qual é o valor mínimo para saque?</span>
-                        <ExternalLink className="w-4 h-4 text-[#848E9C] group-hover:text-[#FCD535] flex-shrink-0 ml-2" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="flex gap-4 mt-6">
+              <button
+                onClick={() => window.history.back()}
+                className="flex-1 py-3 px-6 bg-transparent border border-[#434C5A] text-white rounded-lg hover:bg-[#2B3139] transition-colors"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleWithdrawal}
+                className="flex-1 py-3 px-6 bg-[#26d47c] text-black font-medium rounded-lg hover:bg-[#22c470] transition-colors"
+              >
+                Confirmar Saque
+              </button>
             </div>
           </div>
         </div>
       </div>
 
+      {/* KYC Modal */}
       {showKycModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1E2329] rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#101825] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-white">Verificação KYC</h2>
+                <h2 className="text-xl font-bold text-white">Verificação de Identidade (KYC)</h2>
                 <button onClick={closeKycModal} className="text-[#848E9C] hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Step 1: Document Type Selection */}
               {kycStep === 1 && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <h3 className="text-lg font-medium text-white mb-2">Escolha o seu tipo de documento</h3>
-                    <p className="text-[#848E9C] text-sm">Selecione o documento que você irá fotografar</p>
+                    <Shield className="w-16 h-16 text-[#26d47c] mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-white mb-2">Selecione o tipo de documento</h3>
+                    <p className="text-[#848E9C] text-sm">Escolha o documento que você irá fotografar</p>
                   </div>
 
-                  <div className="space-y-3">
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        selectedDocumentType === "rg"
-                          ? "border-[#FCD535] bg-[#FCD535]/10"
-                          : "border-[#2B3139] hover:border-[#434C5A]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="document"
-                        value="rg"
-                        checked={selectedDocumentType === "rg"}
-                        onChange={(e) => setSelectedDocumentType(e.target.value)}
-                        className="sr-only"
-                      />
-                      <div className="flex items-center space-x-3">
-                        <div className="text-[#FCD535]">
-                          <IdCard className="w-6 h-6" />
+                  <div className="grid gap-4">
+                    {["RG", "CNH", "Passaporte"].map((doc) => (
+                      <button
+                        key={doc}
+                        onClick={() => {
+                          setDocumentType(doc)
+                          setKycStep(2)
+                        }}
+                        className="p-4 bg-[#2B3139] hover:bg-[#434C5A] rounded-lg text-white transition-colors text-left"
+                      >
+                        <div className="font-medium">{doc}</div>
+                        <div className="text-sm text-[#848E9C] mt-1">
+                          {doc === "RG" && "Registro Geral (frente e verso)"}
+                          {doc === "CNH" && "Carteira Nacional de Habilitação (frente e verso)"}
+                          {doc === "Passaporte" && "Passaporte (página principal)"}
                         </div>
-                        <span className="text-white font-medium">Carteira de identidade</span>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        selectedDocumentType === "cnh"
-                          ? "border-[#FCD535] bg-[#FCD535]/10"
-                          : "border-[#2B3139] hover:border-[#434C5A]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="document"
-                        value="cnh"
-                        checked={selectedDocumentType === "cnh"}
-                        onChange={(e) => setSelectedDocumentType(e.target.value)}
-                        className="sr-only"
-                      />
-                      <div className="flex items-center space-x-3">
-                        <div className="text-[#FCD535]">
-                          <CreditCard className="w-6 h-6" />
-                        </div>
-                        <span className="text-white font-medium">Carteira de habilitação</span>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        selectedDocumentType === "passaporte"
-                          ? "border-[#FCD535] bg-[#FCD535]/10"
-                          : "border-[#2B3139] hover:border-[#434C5A]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="document"
-                        value="passaporte"
-                        checked={selectedDocumentType === "passaporte"}
-                        onChange={(e) => setSelectedDocumentType(e.target.value)}
-                        className="sr-only"
-                      />
-                      <div className="flex items-center space-x-3">
-                        <div className="text-[#FCD535]">
-                          <FileText className="w-6 h-6" />
-                        </div>
-                        <span className="text-white font-medium">Passaporte</span>
-                      </div>
-                    </label>
+                      </button>
+                    ))}
                   </div>
+                </div>
+              )}
+
+              {/* Step 2: Document Front */}
+              {kycStep === 2 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-white mb-2">Fotografe a frente do {documentType}</h3>
+                    <p className="text-[#848E9C] text-sm">Tire uma foto clara da frente do seu documento</p>
+                  </div>
+
+                  <div className="max-w-sm mx-auto">
+                    {isCameraActive && captureMode === "front" ? (
+                      <CameraPreview mode="front" />
+                    ) : documentFront ? (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <img
+                            src={documentFront}
+                            alt="Frente do documento"
+                            className="w-full h-64 object-cover rounded-lg"
+                          />
+                          <button
+                            onClick={() => setDocumentFront(null)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDocumentFront(null)}
+                            className="flex-1 py-2 px-3 bg-[#434C5A] text-white rounded-lg hover:bg-[#2B3139] transition-colors text-sm"
+                          >
+                            Refazer Foto
+                          </button>
+                          <button
+                            className="flex-1 py-2 px-3 bg-[#26d47c] text-black rounded-lg hover:bg-[#22c470] transition-colors text-sm font-medium"
+                            onClick={() => setKycStep(3)}
+                          >
+                            ✓ Continuar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => startCamera("front")}
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Camera className="w-5 h-5" />
+                          Usar Câmera
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, "front")}
+                          className="hidden"
+                          id="front-upload"
+                        />
+                        <label
+                          htmlFor="front-upload"
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Upload className="w-5 h-5" />
+                          Enviar Arquivo
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Document Back */}
+              {kycStep === 3 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-white mb-2">Fotografe o verso do {documentType}</h3>
+                    <p className="text-[#848E9C] text-sm">Tire uma foto clara do verso do seu documento</p>
+                  </div>
+
+                  <div className="max-w-sm mx-auto">
+                    {isCameraActive && captureMode === "back" ? (
+                      <CameraPreview mode="back" />
+                    ) : documentBack ? (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <img
+                            src={documentBack}
+                            alt="Verso do documento"
+                            className="w-full h-64 object-cover rounded-lg"
+                          />
+                          <button
+                            onClick={() => setDocumentBack(null)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDocumentBack(null)}
+                            className="flex-1 py-2 px-3 bg-[#434C5A] text-white rounded-lg hover:bg-[#2B3139] transition-colors text-sm"
+                          >
+                            Refazer Foto
+                          </button>
+                          <button
+                            className="flex-1 py-2 px-3 bg-[#26d47c] text-black rounded-lg hover:bg-[#22c470] transition-colors text-sm font-medium"
+                            onClick={() => setKycStep(4)}
+                          >
+                            ✓ Continuar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => startCamera("back")}
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Camera className="w-5 h-5" />
+                          Usar Câmera
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, "back")}
+                          className="hidden"
+                          id="back-upload"
+                        />
+                        <label
+                          htmlFor="back-upload"
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Upload className="w-5 h-5" />
+                          Enviar Arquivo
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Selfie */}
+              {kycStep === 4 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-white mb-2">Tire uma selfie</h3>
+                    <p className="text-[#848E9C] text-sm">Posicione seu rosto dentro do contorno e tire a foto</p>
+                  </div>
+
+                  <div className="max-w-sm mx-auto">
+                    {isCameraActive && captureMode === "selfie" ? (
+                      <CameraPreview mode="selfie" />
+                    ) : selfiePhoto ? (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <img
+                            src={selfiePhoto}
+                            alt="Selfie"
+                            className="w-full h-64 object-cover rounded-lg"
+                          />
+                          <button
+                            onClick={() => setSelfiePhoto(null)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelfiePhoto(null)}
+                            className="flex-1 py-2 px-3 bg-[#434C5A] text-white rounded-lg hover:bg-[#2B3139] transition-colors text-sm"
+                          >
+                            Refazer Selfie
+                          </button>
+                          <button
+                            className="flex-1 py-2 px-3 bg-[#26d47c] text-black rounded-lg hover:bg-[#22c470] transition-colors text-sm font-medium"
+                            onClick={() => setKycStep(5)}
+                          >
+                            ✓ Continuar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => startCamera("selfie")}
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Camera className="w-5 h-5" />
+                          Usar Câmera
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, "selfie")}
+                          className="hidden"
+                          id="selfie-upload"
+                        />
+                        <label
+                          htmlFor="selfie-upload"
+                          className="w-full p-4 border-2 border-dashed border-[#434C5A] rounded-lg text-[#848E9C] hover:border-[#26d47c] hover:text-[#26d47c] transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Upload className="w-5 h-5" />
+                          Enviar Arquivo
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Analysis */}
+              {kycStep === 5 && (
+                <div className="space-y-6 text-center">
+                  {!analysisComplete ? (
+                    <>
+                      <div className="w-16 h-16 border-4 border-[#26d47c] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <h3 className="text-lg font-bold text-white">Analisando documentos...</h3>
+                      <p className="text-[#848E9C] text-sm">Aguarde enquanto verificamos suas informações</p>
+                      {!isAnalyzing && (
+                        <button
+                          onClick={analyzeDocuments}
+                          className="py-3 px-6 bg-[#26d47c] text-black font-medium rounded-lg hover:bg-[#22c470] transition-colors"
+                        >
+                          Iniciar Análise
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-16 h-16 text-[#26d47c] mx-auto" />
+                      <h3 className="text-lg font-bold text-white">Verificação concluída!</h3>
+                      <p className="text-[#848E9C] text-sm">Seus documentos foram verificados com sucesso</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Security Tax Modal */}
+      {showSecurityTaxModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#101825] rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header do modal */}
+              <div className="flex items-center justify-between mb-6">
+                <button onClick={closeSecurityTaxModal} className="text-[#848E9C] hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center text-white font-bold text-xs">
+                    BR
+                  </div>
+                </div>
+                <div></div>
+              </div>
+
+              <div className="text-center mb-6">
+                <h3 className="text-lg font-bold text-white">Governo Federal do Brasil</h3>
+              </div>
+
+              {/* Indicador de steps */}
+              <div className="flex items-center justify-center mb-6">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    taxStep === 1 ? "bg-[#26d47c] text-black" : "bg-[#434C5A] text-white"
+                  }`}
+                >
+                  1
+                </div>
+                <div className="w-12 h-0.5 bg-[#434C5A] mx-2"></div>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    taxStep === 2 ? "bg-[#26d47c] text-black" : "bg-[#434C5A] text-white"
+                  }`}
+                >
+                  2
+                </div>
+              </div>
+
+              {/* Tela 1 - Explicação da taxa */}
+              {taxStep === 1 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertTriangle className="w-8 h-8 text-yellow-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Taxa de Segurança Anti-Fraude</h2>
+                  </div>
+
+                  <div className="bg-[#2B3139] rounded-lg p-4 text-center">
+                    <div className="text-[#848E9C] text-sm mb-1">Taxa Obrigatória</div>
+                    <div className="text-2xl font-bold text-[#26d47c]">R$ 497,00</div>
+                  </div>
+
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                    <h3 className="text-green-400 font-bold mb-2 flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      Lei Federal Anti-Fraude
+                    </h3>
+                    <p className="text-green-400 text-sm mb-2">
+                      Esta cobrança está prevista na <strong>Lei Federal nº 14.063/2020</strong> e é obrigatória para
+                      validação de saques elevados.
+                    </p>
+                    <p className="text-green-400 text-sm mb-2">
+                      <strong>Finalidade:</strong> Proteger sua conta contra fraudes e validar a legitimidade da
+                      operação financeira.
+                    </p>
+                    <p className="text-green-400 text-sm">
+                      <strong>⚠️ IMPORTANTE:</strong> O valor da taxa será depositado em sua conta junto com o valor do
+                      saque após a validação.
+                    </p>
+                  </div>
+
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                    <h3 className="text-yellow-400 font-bold mb-2">⚖️ Respaldo Jurídico</h3>
+                    <p className="text-yellow-400 text-sm mb-2">
+                      Esta cobrança está prevista na <strong>Lei Federal de Combate à Lavagem de Dinheiro</strong> e é
+                      aplicada automaticamente pelo Sistema Financeiro Nacional.
+                    </p>
+                    <p className="text-yellow-400 text-sm">
+                      Aplicável para operações acima de <strong>R$ 10.000,00</strong> conforme normativa do Banco
+                      Central.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleSecurityTaxPayment}
+                    disabled={loading}
+                    className="w-full py-3 rounded-lg font-medium bg-[#26d47c] hover:bg-[#22c470] text-black transition-colors disabled:opacity-50"
+                  >
+                    {loading ? "Gerando PIX..." : "Prosseguir com o Pagamento"}
+                  </button>
+                </div>
+              )}
+
+              {/* Tela 2 - QR Code para pagamento */}
+              {taxStep === 2 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h2 className="text-xl font-bold text-white mb-2">Pagamento da Taxa de Segurança</h2>
+                  </div>
+
+                  {qrCode && (
+                    <div className="bg-white rounded-lg p-4 text-center">
+                      <img src={qrCode} alt="QR Code PIX" className="mx-auto mb-2" />
+                      <p className="text-gray-600 text-sm">Escaneie com o app do seu banco</p>
+                    </div>
+                  )}
 
                   <div className="bg-[#2B3139] rounded-lg p-4">
-                    <p className="text-[#848E9C] text-sm mb-2">
-                      Tire uma foto do seu {getDocumentName(selectedDocumentType).toLowerCase()}. A foto deve ser:
-                    </p>
-                    <ul className="text-[#848E9C] text-sm space-y-1">
-                      <li>
-                        • <strong className="text-white">clara e nítida</strong>
-                      </li>
-                      <li>
-                        • <strong className="text-white">todos os cantos do documento devem estar visíveis</strong>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <button
-                    onClick={handleDocumentSelection}
-                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Fotografar Documento
-                  </button>
-                </div>
-              )}
-
-              {kycStep === 2 && (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento (frente)</h3>
-                    <p className="text-[#848E9C] text-sm">
-                      Posicione a frente do documento dentro da moldura e capture a foto
-                    </p>
-                  </div>
-
-                  {cameraError && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <p className="text-red-400 text-sm">{cameraError}</p>
-                    </div>
-                  )}
-
-                  <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
-                    <div className="aspect-[4/3] relative">
-                      {isCameraActive ? (
-                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                      ) : documentPhoto ? (
-                        <img
-                          src={documentPhoto || "/placeholder.svg"}
-                          alt="Documento capturado"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                          <div className="text-center">
-                            {getDocumentIcon(selectedDocumentType)}
-                            <p className="text-[#848E9C] text-sm mt-2">Clique para ativar a câmera</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {isCameraActive && (
-                        <div className="absolute inset-4 pointer-events-none">
-                          <div className="w-full h-full border-2 border-white/60 rounded-lg relative">
-                            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
-                            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
-                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
-                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-white text-xs bg-black/70 px-3 py-1 rounded-full">
-                                Centralize o documento
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <canvas ref={canvasRef} className="hidden" />
-
-                  <div className="space-y-2">
-                    {!documentPhoto ? (
-                      <button
-                        onClick={handleCameraCapture}
-                        disabled={cameraError !== null}
-                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Camera className="w-4 h-4" />
-                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => setKycStep(3)}
-                          className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
-                        >
-                          Continuar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {kycStep === 3 && (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="text-lg font-medium text-white mb-2">Foto do documento (verso)</h3>
-                    <p className="text-[#848E9C] text-sm">
-                      Agora posicione o verso do documento dentro da moldura e capture a foto
-                    </p>
-                  </div>
-
-                  {cameraError && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <p className="text-red-400 text-sm">{cameraError}</p>
-                    </div>
-                  )}
-
-                  <div className="relative bg-[#2B3139] rounded-lg overflow-hidden">
-                    <div className="aspect-[4/3] relative">
-                      {isCameraActive ? (
-                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                      ) : documentBackPhoto ? (
-                        <img
-                          src={documentBackPhoto || "/placeholder.svg"}
-                          alt="Verso do documento capturado"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                          <div className="text-center">
-                            {getDocumentIcon(selectedDocumentType)}
-                            <p className="text-[#848E9C] text-sm mt-2">Clique para ativar a câmera</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {isCameraActive && (
-                        <div className="absolute inset-4 pointer-events-none">
-                          <div className="w-full h-full border-2 border-white/60 rounded-lg relative">
-                            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
-                            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
-                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
-                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-white text-xs bg-black/70 px-3 py-1 rounded-full">
-                                Centralize o verso do documento
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <canvas ref={canvasRef} className="hidden" />
-
-                  <div className="space-y-2">
-                    {!documentBackPhoto ? (
-                      <button
-                        onClick={handleCameraCapture}
-                        disabled={cameraError !== null}
-                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Camera className="w-4 h-4" />
-                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => {
-                            setDocumentBackPhoto(null)
-                            startCamera()
-                          }}
-                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                        >
-                          Tirar Novamente
-                        </button>
-                        <button
-                          onClick={() => setKycStep(4)}
-                          className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
-                        >
-                          Continuar para Selfie
-                        </button>
-                      </div>
-                    )}
-
-                    {isCameraActive && !documentBackPhoto && (
-                      <button
-                        onClick={stopCamera}
-                        className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {kycStep === 4 && (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="text-lg font-medium text-white mb-2">Verificação Facial</h3>
-                    <p className="text-[#848E9C] text-sm">
-                      Posicione seu rosto dentro do círculo e clique para capturar
-                    </p>
-                  </div>
-
-                  {cameraError && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <p className="text-red-400 text-sm">{cameraError}</p>
-                    </div>
-                  )}
-
-                  <div className="relative bg-[#2B3139] rounded-lg p-8 text-center">
-                    <div className="w-64 h-64 mx-auto border-4 border-[#FCD535] rounded-full overflow-hidden flex items-center justify-center relative bg-gray-900">
-                      {isCameraActive ? (
-                        <video
-                          ref={videoRef}
-                          className="w-full h-full object-cover scale-x-[-1]"
-                          autoPlay
-                          muted
-                          playsInline
-                          style={{
-                            minWidth: "100%",
-                            minHeight: "100%",
-                          }}
-                        />
-                      ) : facialPhoto ? (
-                        <img
-                          src={facialPhoto || "/placeholder.svg"}
-                          alt="Foto facial"
-                          className="w-full h-full object-cover scale-x-[-1]"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                          <Camera className="w-16 h-16 text-[#848E9C]" />
-                        </div>
-                      )}
-
-                      {isCameraActive && (
-                        <div className="absolute inset-4 pointer-events-none flex items-center justify-center">
-                          <div className="w-40 h-48 border-2 border-white/60 rounded-full flex items-center justify-center">
-                            <div className="text-white text-xs bg-black/70 px-3 py-1 rounded-full">
-                              Centralize seu rosto
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <canvas ref={canvasRef} className="hidden" />
-
-                  <div className="space-y-2">
-                    {!facialPhoto ? (
-                      <button
-                        onClick={handleCameraCapture}
-                        disabled={cameraError !== null}
-                        className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] disabled:bg-[#434C5A] disabled:cursor-not-allowed text-black transition-colors"
-                      >
-                        {isCameraActive ? "Capturar Foto" : "Ativar Câmera"}
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => {
-                            setFacialPhoto(null)
-                            startCamera()
-                          }}
-                          className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                        >
-                          Tirar Novamente
-                        </button>
-                      </div>
-                    )}
-
-                    {isCameraActive && !facialPhoto && (
-                      <button
-                        onClick={stopCamera}
-                        className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {kycStep === 5 && (
-                <div className="space-y-4 text-center">
-                  <div className="relative">
-                    <div className="w-48 h-48 mx-auto border-4 border-[#FCD535] rounded-lg overflow-hidden relative">
-                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#FCD535]"></div>
-                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#FCD535]"></div>
-                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#FCD535]"></div>
-                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#FCD535]"></div>
-
-                      {facialPhoto && (
-                        <img
-                          src={facialPhoto || "/placeholder.svg"}
-                          alt="Foto facial"
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#FCD535]/20 to-transparent animate-pulse"></div>
-                    </div>
-                  </div>
-
-                  <h3 className="text-lg font-medium text-white">Analisando reconhecimento facial</h3>
-                  <p className="text-[#848E9C] text-sm">Por favor, aguarde...</p>
-
-                  <div className="flex justify-center space-x-1">
-                    <div className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"></div>
-                    <div
-                      className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-[#FCD535] rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-
-              {kycStep === 6 && (
-                <div className="space-y-4 text-center">
-                  <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
-                  <h3 className="text-lg font-medium text-white mb-2">Verificação Concluída!</h3>
-                  <p className="text-[#848E9C] text-sm">Sua identidade foi verificada com sucesso.</p>
-
-                  <button
-                    onClick={proceedToFees}
-                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
-                  >
-                    Prosseguir com Saque
-                  </button>
-                </div>
-              )}
-
-              {kycStep === 7 && !showPaymentDialog && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">Taxa de Verificação KYC</h3>
-
-                  <div className="bg-[#2B3139] rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-[#848E9C]">Valor do saque:</span>
-                      <span className="text-white">R$ {withdrawalAmount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#848E9C]">Taxa KYC:</span>
-                      <span className="text-red-400">R$ 495,00</span>
-                    </div>
-                    <div className="border-t border-[#434C5A] pt-2">
-                      <div className="flex justify-between font-medium">
-                        <span className="text-white">Valor do saque (após verificação):</span>
-                        <span className="text-[#FCD535] font-medium">R$ {withdrawalAmount}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                    <p className="text-yellow-400 text-sm">
-                      ⚠️ A taxa de verificação KYC é cobrada apenas na primeira verificação.
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      await handleCreateKycPayment()
-                      setShowPaymentDialog(true)
-                    }}
-                    disabled={loading}
-                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors disabled:opacity-50"
-                  >
-                    {loading ? "Gerando PIX..." : "Gerar PIX para Taxa KYC"}
-                  </button>
-                </div>
-              )}
-
-              {kycStep === 7 && showPaymentDialog && (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">Pague a Taxa KYC</h3>
-                    <p className="text-[#848E9C] text-sm">
-                      Pague a taxa de verificação KYC de R$ 495,00 via PIX para processar seu saque.
-                    </p>
-                  </div>
-
-                  <div className="bg-white rounded-lg p-4 text-center">
-                    {qrCode && <img src={qrCode || "/placeholder.svg"} alt="QR Code PIX" className="mx-auto mb-4" />}
-                  </div>
-
-                  <div className="bg-[#2B3139] rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-[#848E9C]">Taxa KYC:</span>
-                      <span className="text-[#FCD535] font-medium">R$ 495,00</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#848E9C]">Pagador:</span>
-                      <span className="text-white">{accountHolder}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#848E9C]">Descrição:</span>
-                      <span className="text-white text-sm">Taxa de Verificação KYC</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
+                    <h3 className="text-white font-bold mb-3 flex items-center gap-2">📱 PIX Copia e Cola</h3>
+                    <textarea
+                      value={pixPayload}
+                      readOnly
+                      className="w-full h-20 p-2 bg-[#1a2332] border border-[#434C5A] rounded text-white text-xs resize-none"
+                    />
                     <button
                       onClick={copyPixCode}
-                      className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors flex items-center justify-center gap-2"
+                      className="w-full mt-3 py-2 bg-[#26d47c] text-black font-medium rounded-lg hover:bg-[#22c470] transition-colors flex items-center justify-center gap-2"
                     >
                       <Copy className="w-4 h-4" />
-                      Copiar Código PIX
-                    </button>
-
-                    <button
-                      onClick={downloadQRCode}
-                      className="w-full py-2 rounded-lg font-medium bg-[#2B3139] hover:bg-[#434C5A] text-white transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Download className="w-4 h-4" />
-                      Baixar QR Code
+                      📋 Copiar código PIX
                     </button>
                   </div>
 
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                    <p className="text-blue-400 text-sm">
-                      💡 Após o pagamento da taxa KYC, seu saque de R$ {withdrawalAmount} será processado
-                      automaticamente.
-                    </p>
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                    <h3 className="text-blue-400 font-bold mb-3">⏰ Instruções Importantes</h3>
+                    <div className="space-y-2 text-blue-400 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span>Pague em até 30 minutos</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span>Validação em até 24h úteis</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span>Valor do saque + taxa após validação</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span>Guarde o comprovante</span>
+                      </div>
+                    </div>
                   </div>
-
-                  <button
-                    onClick={closeKycModal}
-                    className="w-full py-2 rounded-lg font-medium bg-[#434C5A] hover:bg-[#525A6A] text-white transition-colors"
-                  >
-                    Fechar
-                  </button>
                 </div>
               )}
             </div>
