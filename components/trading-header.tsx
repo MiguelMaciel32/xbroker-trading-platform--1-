@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, use } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Bell, RefreshCw } from "lucide-react"
+import { Plus, Bell, RefreshCw, Minus } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
 import Link from "next/link"
-import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
+import { getUserBalance, updateUserBalance,getUserName  } from "@/lib/actions/balance"
 import { useRouter } from "next/navigation"
-
 
 interface TradingHeaderProps {
   onBalanceUpdate?: (balance: number) => void
@@ -25,8 +24,29 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
   const [apiBalance, setApiBalance] = useState<number>(0)
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(true)
   const [balanceError, setBalanceError] = useState<string | null>(null)
+ const [username, setUsername] = useState<string | null>(null)
+const [isLoadingName, setIsLoadingName] = useState<boolean>(true)
 
-  // Função para buscar saldo da API
+useEffect(() => {
+  const fetchName = async () => {
+    try {
+      setIsLoadingName(true)
+      const result = await getUserName()
+      if (result.success && result.email) {
+        setUsername(result.email)
+      }
+    } catch (err) {
+      console.error("Erro ao buscar username:", err)
+    } finally {
+      setIsLoadingName(false)
+    }
+  }
+
+  fetchName()
+}, [])
+
+
+
   const fetchBalance = useCallback(async () => {
     try {
       setIsLoadingBalance(true)
@@ -113,49 +133,50 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
   return (
     <div
       className="fixed top-0 left-0 right-0 z-50 border-b "
-      style={{ backgroundColor: "#181A20", borderColor: "#2B3139" }}
+      style={{ backgroundColor: "#141d2f", borderColor: "#2B3139" }}
     >
       <div className="flex items-center justify-between p-2">
         <div className="flex items-center space-x-2 sm:space-x-6">
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <img
-              src= "/logo/logo.png"
-              className="w-10 h-10 sm:h-12 sm:w-12 object-contain"
-            />
+            <img src="/logo/logo.png" className="w-17 h-17 sm:h-17 sm:w-17 object-contain" />
             <span className="hidden xs:block text-white font-semibold text-sm sm:text-lg">
               {config.platform_name || "TradePro"}
+            </span>
+          </div>
+          <div className="hidden md:block">
+            <span className="text-gray-100 text-base sm:text-lg bg-gray-900 px-4 py-2 rounded-full">
+              {isLoadingName ? "Carregando..." : `Olá, ${username || "Usuário"}`}
             </span>
           </div>
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4">
-          <Bell className="hidden sm:block w-5 h-5 text-gray-400" />
 
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="flex items-center space-x-2">
-              <div className="text-right">
-                <div className="text-gray-400 text-xs sm:text-sm">Saldo</div>
-                <div className="text-white font-semibold text-sm sm:text-base">R$ {formatBalance(apiBalance)}</div>
-                {/* {balanceError && <div className="text-red-400 text-xs max-w-24 truncate">{balanceError}</div>} */}
+              <div className="text-right bg-gray-900 px-6  rounded-lg">
+                <div className="text-gray-600 text-sm sm:text-base">Saldo</div>
+                <div className="text-white font-semibold text-base sm:text-lg">R$ {formatBalance(apiBalance)}</div>
               </div>
-
-              <button
-                onClick={handleRefreshBalance}
-                disabled={isLoadingBalance}
-                className="p-1 hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
-                title="Atualizar saldo"
-              >
-                <RefreshCw className={`w-4 h-4 text-gray-400 ${isLoadingBalance ? "animate-spin" : ""}`} />
-              </button>
             </div>
 
             <Link href="/deposit">
               <Button
-                style={{ backgroundColor: "#FCD535", color: "#000000" }}
-                className="hover:opacity-90 text-black font-semibold px-2 sm:px-4 text-xs sm:text-sm transition-opacity"
+                style={{ backgroundColor: "#26d47c", color: "#000000" }}
+                className="hover:opacity-90 text-black font-semibold px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base transition-opacity"
               >
-                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1" />
                 <span className="">Depósito</span>
+              </Button>
+            </Link>
+
+            <Link href="/saque">
+              <Button
+                variant="outline"
+                className="border-gray-600 text-white hover:bg-gray-300 font-semibold px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base transition-colors bg-transparent"
+              >
+                <Minus className="w-4 h-4 sm:w-5 sm:h-5 mr-1" />
+                <span className="">Retirada</span>
               </Button>
             </Link>
           </div>

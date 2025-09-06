@@ -15,7 +15,7 @@ const SITE_CONFIG = {
   supportUrl: "#suporte",
   communityUrl: "#comunidade",
   colors: {
-    primary: "#181A20",
+    primary: "#141d2f",
     secondary: "#1E2329",
     accent: "#2B3139",
     border: "#2B3139",
@@ -500,11 +500,8 @@ export default function TradingChart() {
   }
 
   return (
-    <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#181A20" }}>
- <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
-
-
-
+    <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#141d2f" }}>
+      <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
 
       <div className="hidden lg:block">
         <TradingSidebar />
@@ -514,11 +511,11 @@ export default function TradingChart() {
         <div className="flex-1 w-full">
           <div
             className="w-full h-[60vh] lg:h-[calc(100vh-70px)] flex items-center justify-center relative"
-            style={{ backgroundColor: "#181A20" }}
+            style={{ backgroundColor: "#141d2f" }}
           >
             <div className="w-full h-full relative">
               {!isLoading ? (
-                <div className="w-full h-full relative">
+                <div className="w-full h-full mt-8 relative">
                   <TradingViewWidget symbol={selectedAsset.symbol} />
 
                   <div className="absolute inset-0 pointer-events-none z-10">
@@ -687,9 +684,9 @@ export default function TradingChart() {
 
         <div
           className="hidden lg:block w-80 border-l p-4 space-y-4 h-[calc(100vh-70px)] overflow-y-auto fixed right-0 top-[70px]"
-          style={{ backgroundColor: "#1E2329", borderColor: "#2B3139" }}
+          style={{ backgroundColor: "#141d2f", borderColor: "#2B3139" }}
         >
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "rgba(21, 29, 46, 1)ff" }}>
             <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Selecionar Ativo</div>
             <div className="relative">
               <Button
@@ -743,7 +740,7 @@ export default function TradingChart() {
               )}
             </div>
           </div>
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#172133ff" }}>
             <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Valor do Investimento</div>
             <div className="flex items-center justify-between bg-gray-800 rounded-lg p-2 lg:p-3">
               <Button
@@ -765,7 +762,7 @@ export default function TradingChart() {
               </Button>
             </div>
           </div>
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#181A20" }}>
+          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#172133ff" }}>
             <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Executar Trade</div>
             <div className="space-y-3">
               <Button

@@ -2,11 +2,19 @@
 
 import { createClient } from "@/lib/supabase/client"
 
-// Tipos para as operações de saldo
+
 interface BalanceData {
   balance: number
   user_id: string
 }
+
+
+interface UserNameResult {
+  success: boolean
+  email?: string
+  error?: string
+}
+
 
 interface BalanceResult {
   success: boolean
@@ -17,6 +25,32 @@ interface BalanceResult {
 interface BalanceUpdateRequest {
   balance: number
   operation?: "set" | "add" | "subtract"
+}
+
+export async function getUserName(): Promise<UserNameResult> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return { success: false, error: "Usuário não autenticado" }
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("user_profiles")
+    .select("email") // ou "name", depende do seu schema
+    .eq("id", user.id)
+    .single()
+
+  if (profileError) {
+    return { success: false, error: "Erro ao buscar username" }
+  }
+
+ return { success: true, email: profile.email as string }
+
 }
 
 export async function getUserBalance(): Promise<BalanceResult> {
