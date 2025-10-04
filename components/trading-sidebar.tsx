@@ -83,7 +83,7 @@ export default function TradingSidebar() {
           <ArrowUpDown className={`h-6 w-6 transition-colors ${getIconColor("/saque")}`} />
           <span className={`text-[9px] font-medium transition-colors ${getIconColor("/saque")}`}>SAQUE</span>
         </Link>
-
+{/* 
         {config.group_link && (
           <a
             href={config.group_link}
@@ -97,7 +97,7 @@ export default function TradingSidebar() {
               GRUPO
             </span>
           </a>
-        )}
+        )} */}
 
         <div className="flex-1" />
 
