@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export default function DepositPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
@@ -9,6 +9,10 @@ export default function DepositPage() {
   const [selectedAmount, setSelectedAmount] = useState(60)
   const [customAmount, setCustomAmount] = useState("")
   const [showPixModal, setShowPixModal] = useState(false)
+  const [pixData, setPixData] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [txid, setTxid] = useState("")
 
   const predefinedAmounts = [60, 250, 1000, 2000, 100, 500, 1500, 4000]
 
@@ -56,21 +60,110 @@ export default function DepositPage() {
     setSelectedAmount(Number.parseInt(value) || 0)
   }
 
-  const handleContinueToPayment = () => {
+  const handleContinueToPayment = async () => {
     if (agreedToTerms && selectedAmount > 0) {
-      setShowPixModal(true)
+      setIsLoading(true)
+      setError("")
+      
+      try {
+        const response = await fetch("https://www.casperspay.com/api/pix", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+          },
+          body: JSON.stringify({
+            action: "criar",
+            nome: "nicolas",
+            cpf: "48402124062",
+            valor: selectedAmount
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error("Erro ao gerar PIX")
+        }
+
+        const data = await response.json()
+        setPixData(data)
+        setTxid(data.txid)
+        setShowPixModal(true)
+      } catch (err) {
+        setError("Erro ao gerar PIX. Tente novamente.")
+        console.error("Error creating PIX:", err)
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
   const copyPixCode = async () => {
-    const pixCode =
-      "00020101021226870014br.gov.bcb.pix2565qrcode.santsbank.com/dynamic/5a99982d-f8b9-4da3-910c-7b6aeeaac1645204000053039865802BR5910PIXUP LTDA6009Sao Paulo62070503***6304C311"
+    const pixCode = pixData?.pixCopiaECola || ""
     try {
       await navigator.clipboard.writeText(pixCode)
+      alert("Código PIX copiado!")
     } catch (err) {
       console.error("Failed to copy PIX code:", err)
     }
   }
+
+  const checkPaymentStatus = async (txidToCheck: string) => {
+    try {
+      const response = await fetch("https://www.casperspay.com/api/pix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+        },
+        body: JSON.stringify({
+          action: "verificar",
+          txid: txidToCheck
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Erro ao verificar pagamento")
+      }
+
+      const data = await response.json()
+      
+      if (data.status === "CONCLUIDA" || data.pixStatus === "CONCLUIDA") {
+        setShowPixModal(false)
+        alert("Pagamento confirmado! Seu depósito foi processado com sucesso.")
+        setTxid("")
+        setPixData(null)
+      }
+    } catch (err) {
+      console.error("Error checking payment status:", err)
+    }
+  }
+
+  // Effect para verificar status do pagamento a cada 3 segundos
+  useEffect(() => {
+    let timeout: NodeJS.Timeout
+    let isActive = true
+
+    const verifyPayment = async () => {
+      if (!isActive || !txid) return
+      
+      await checkPaymentStatus(txid)
+      
+      if (isActive && showPixModal && txid) {
+        timeout = setTimeout(verifyPayment, 3000)
+      }
+    }
+
+    if (showPixModal && txid) {
+      verifyPayment()
+    }
+
+    return () => {
+      isActive = false
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+    }
+  }, [showPixModal, txid])
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -194,23 +287,30 @@ export default function DepositPage() {
                   <span className="text-gray-600 text-sm">Eu, por meio deste, aceito os Termos e Condições</span>
                 </label>
 
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
+
                 <div className="flex gap-4 pt-6">
                   <button
                     onClick={() => setCurrentStep("methods")}
                     className="px-8 py-3 bg-white border-2 border-gray-200 text-black rounded-lg hover:border-black transition-all font-semibold"
+                    disabled={isLoading}
                   >
                     Voltar
                   </button>
                   <button
                     onClick={handleContinueToPayment}
-                    disabled={!agreedToTerms || selectedAmount === 0}
+                    disabled={!agreedToTerms || selectedAmount === 0 || isLoading}
                     className={`flex-1 py-3 px-8 rounded-lg font-bold transition-all ${
-                      agreedToTerms && selectedAmount > 0
+                      agreedToTerms && selectedAmount > 0 && !isLoading
                         ? "bg-black text-white hover:bg-gray-800 shadow-md"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
                   >
-                    Seguir para pagamento
+                    {isLoading ? "Gerando PIX..." : "Seguir para pagamento"}
                   </button>
                 </div>
               </div>
@@ -218,13 +318,17 @@ export default function DepositPage() {
           )}
         </div>
 
-        {showPixModal && (
+        {showPixModal && pixData && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-black">Depósito via PIX</h2>
                 <button 
-                  onClick={() => setShowPixModal(false)} 
+                  onClick={() => {
+                    setShowPixModal(false)
+                    setTxid("")
+                    setPixData(null)
+                  }} 
                   className="text-gray-400 hover:text-black text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all"
                 >
                   ✕
@@ -243,7 +347,7 @@ export default function DepositPage() {
               <div className="flex justify-center mb-6">
                 <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=00020101021226870014br.gov.bcb.pix2565qrcode.santsbank.com%2Fdynamic%2F5a99982d-f8b9-4da3-910c-7b6aeeaac1645204000053039865802BR5910PIXUP+LTDA6009Sao+Paulo62070503%2A%2A%2A6304C311`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(pixData?.pixCopiaECola || "")}`}
                     alt="QR Code PIX"
                     className="w-[220px] h-[220px]"
                   />
@@ -253,15 +357,20 @@ export default function DepositPage() {
               <div className="space-y-4">
                 <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl">
                   <div className="text-xs text-gray-600 font-mono break-all mb-3 leading-relaxed">
-                    00020101021226870014br.gov.bcb.pix2565qrcode.santsbank.com/dynamic/5a99982d-f8b9-4da3-910c-7b6aeeaac1645204000053039865802BR5910PIXUP
-                    LTDA6009Sao Paulo62070503***6304C311
+                    {pixData?.pixCopiaECola || "Código PIX"}
                   </div>
                   <button
                     onClick={copyPixCode}
                     className="w-full py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold"
                   >
-                    Copiar Código
+                    Copiar Código PIX
                   </button>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                  <p className="text-xs text-blue-800 text-center">
+                    🔄 Verificando pagamento automaticamente...
+                  </p>
                 </div>
 
                 <p className="text-center text-gray-600 text-sm leading-relaxed">
