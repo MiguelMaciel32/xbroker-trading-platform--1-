@@ -1,7 +1,7 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
+import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
 
 export default function DepositPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
@@ -13,6 +13,8 @@ export default function DepositPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [txid, setTxid] = useState("")
+  const [userBalance, setUserBalance] = useState(0)
+  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
 
   const predefinedAmounts = [60, 250, 1000, 2000, 100, 500, 1500, 4000]
 
@@ -49,6 +51,26 @@ export default function DepositPage() {
     },
   ]
 
+  // Buscar saldo do usuário ao carregar a página
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        setIsLoadingBalance(true)
+        const result = await getUserBalance()
+        
+        if (result.success && result.data) {
+          setUserBalance(result.data.balance)
+        }
+      } catch (err) {
+        console.error("Erro ao buscar saldo:", err)
+      } finally {
+        setIsLoadingBalance(false)
+      }
+    }
+
+    fetchBalance()
+  }, [])
+
   const handleAmountSelect = (amount: number) => {
     setSelectedAmount(amount)
     setCustomAmount(amount.toString())
@@ -66,7 +88,7 @@ export default function DepositPage() {
       setError("")
       
       try {
-        const response = await fetch("https://www.casperspay.com/api/pix", {
+        const response = await fetch("http://localhost:3001/api/pix", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -107,9 +129,35 @@ export default function DepositPage() {
     }
   }
 
+  const handlePaymentConfirmed = async () => {
+    try {
+      // Atualizar o saldo adicionando o valor depositado
+      const result = await updateUserBalance({
+        balance: selectedAmount,
+        operation: "add"
+      })
+
+      if (result.success && result.data) {
+        setUserBalance(result.data.balance)
+        setShowPixModal(false)
+        setTxid("")
+        setPixData(null)
+        setSelectedAmount(60)
+        setCustomAmount("")
+        setAgreedToTerms(false)
+        setCurrentStep("methods")
+        
+        alert(`Pagamento confirmado! Seu depósito de R$ ${selectedAmount.toFixed(2)} foi processado com sucesso. Novo saldo: R$ ${result.data.balance.toFixed(2)}`)
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar saldo:", err)
+      alert("Pagamento confirmado, mas houve um erro ao atualizar o saldo. Por favor, recarregue a página.")
+    }
+  }
+
   const checkPaymentStatus = async (txidToCheck: string) => {
     try {
-      const response = await fetch("https://www.casperspay.com/api/pix", {
+      const response = await fetch("http://localhost:3001/api/pix", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -128,10 +176,7 @@ export default function DepositPage() {
       const data = await response.json()
       
       if (data.status === "CONCLUIDA" || data.pixStatus === "CONCLUIDA") {
-        setShowPixModal(false)
-        alert("Pagamento confirmado! Seu depósito foi processado com sucesso.")
-        setTxid("")
-        setPixData(null)
+        await handlePaymentConfirmed()
       }
     } catch (err) {
       console.error("Error checking payment status:", err)
@@ -168,6 +213,30 @@ export default function DepositPage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <div className="container mx-auto px-4 py-8">
+        {/* Exibir saldo atual do usuário */}
+        <div className="max-w-2xl mx-auto mb-6">
+          <div className="bg-gradient-to-r from-black to-gray-800 text-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-300 text-sm font-medium mb-1">Saldo Atual</p>
+                <p className="text-3xl font-bold">
+                  {isLoadingBalance ? (
+                    <span className="animate-pulse">Carregando...</span>
+                  ) : (
+                    `R$ ${userBalance.toFixed(2)}`
+                  )}
+                </p>
+              </div>
+              <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {currentStep !== "methods" && (
           <div className="mb-6">
             <div className="text-sm text-gray-500">
@@ -276,6 +345,18 @@ export default function DepositPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Mostrar novo saldo após depósito */}
+                {selectedAmount > 0 && (
+                  <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-green-800 font-medium">Novo saldo após depósito:</span>
+                      <span className="text-green-900 font-bold text-lg">
+                        R$ {(userBalance + selectedAmount).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <label className="flex items-start gap-3 mt-8 cursor-pointer">
                   <input
