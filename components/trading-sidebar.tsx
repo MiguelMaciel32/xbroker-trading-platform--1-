@@ -24,80 +24,40 @@ export default function TradingSidebar() {
 
   const isActive = (path: string) => pathname === path
 
-  const getActiveStyles = (path: string) => (isActive(path) ? { backgroundColor: "#2a3441", color: "#fff" } : {})
+  const getActiveStyles = (path: string) => (isActive(path) ? "bg-black text-white" : "text-gray-600 hover:bg-gray-100")
 
-  const getIconColor = (path: string) => (isActive(path) ? "#fff" : "text-gray-400 hover:text-gray-200")
-
-  const getMobileIconColor = (path: string) => (isActive(path) ? "text-gray-200" : "text-gray-400")
-
-  const getMobileBackgroundColor = (path: string) => (isActive(path) ? "bg-[#2a3441] shadow-lg" : "hover:bg-white/10")
-
-  const getPageLabel = () => {
-    switch (pathname) {
-      case "/trading":
-        return "Gráficos de Trading"
-      case "/deposit":
-        return "Depósito de Fundos"
-      case "/saque":
-        return "Saque de Fundos"
-      case "/account":
-        return "Minha Conta"
-      default:
-        return "Navegação"
-    }
-  }
+  const getIconColor = (path: string) => (isActive(path) ? "text-white" : "text-gray-600")
 
   return (
     <>
       {/* Sidebar Desktop */}
-      <div
-        className="hidden lg:flex w-16 border-r flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20"
-        style={{ backgroundColor: "#141d2f", borderColor: "#2B3139" }}
-      >
+      <div className="hidden lg:flex w-16 border-r border-gray-200 flex-col items-center py-6 space-y-6 fixed left-0 top-[70px] h-[calc(100vh-70px)] z-20 bg-white">
         <Link
           href="/trading"
-          className="flex flex-col items-center space-y-1 p-3 rounded-lg transition-colors hover:bg-[#1e2a42]"
-          style={getActiveStyles("/trading")}
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/trading")}`}
           title="Trading - Negocie e visualize gráficos em tempo real"
         >
           <BarChart3 className={`h-6 w-6 transition-colors ${getIconColor("/trading")}`} />
-          <span className={`text-[9px] font-medium transition-colors ${getIconColor("/trading")}`}>GRÁFICO</span>
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/trading")}`}>GRÁFICO</span>
         </Link>
 
         <Link
           href="/deposit"
-          className="flex flex-col items-center space-y-1 hover:bg-[#1e2a42] p-3 rounded-lg transition-colors"
-          style={getActiveStyles("/deposit")}
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/deposit")}`}
           title="Depósito - Adicione fundos à sua conta"
         >
           <CreditCard className={`h-6 w-6 transition-colors ${getIconColor("/deposit")}`} />
-          <span className={`text-[9px] font-medium transition-colors ${getIconColor("/deposit")}`}>DEPÓSITO</span>
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/deposit")}`}>DEPÓSITO</span>
         </Link>
 
         <Link
           href="/saque"
-          className="flex flex-col items-center space-y-1 hover:bg-[#1e2a42] p-3 rounded-lg transition-colors"
-          style={getActiveStyles("/saque")}
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/saque")}`}
           title="Saque - Retire seus fundos da plataforma"
         >
           <ArrowUpDown className={`h-6 w-6 transition-colors ${getIconColor("/saque")}`} />
-          <span className={`text-[9px] font-medium transition-colors ${getIconColor("/saque")}`}>SAQUE</span>
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/saque")}`}>SAQUE</span>
         </Link>
-{/* 
-        {config.group_link && (
-          <a
-            href={config.group_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center space-y-1 hover:bg-[#1e2a42] p-3 rounded-lg transition-colors group"
-            title="Comunidade - Junte-se ao nosso grupo"
-          >
-            <Users className="h-6 w-6 text-gray-400 group-hover:text-gray-200 transition-colors" />
-            <span className="text-[9px] font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
-              GRUPO
-            </span>
-          </a>
-        )} */}
 
         <div className="flex-1" />
 
@@ -106,11 +66,11 @@ export default function TradingSidebar() {
             href={config.support_link}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex flex-col items-center space-y-1 hover:bg-[#1e2a42] p-3 rounded-lg transition-colors group"
+            className="flex flex-col items-center space-y-1 hover:bg-gray-100 p-3 rounded-lg transition-all group"
             title="Suporte - Obtenha ajuda e tire suas dúvidas"
           >
-            <HelpCircle className="h-6 w-6 text-gray-400 group-hover:text-gray-200 transition-colors" />
-            <span className="text-[9px] font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+            <HelpCircle className="h-6 w-6 text-gray-600 group-hover:text-black transition-colors" />
+            <span className="text-[9px] font-bold text-gray-600 group-hover:text-black transition-colors">
               SUPORTE
             </span>
           </a>
@@ -118,84 +78,66 @@ export default function TradingSidebar() {
 
         <Link
           href="/account"
-          className="flex flex-col items-center space-y-1 hover:bg-[#1e2a42] p-3 rounded-lg transition-colors"
-          style={getActiveStyles("/account")}
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/account")}`}
           title="Conta - Gerencie seu perfil e informações"
         >
           <User className={`h-6 w-6 transition-colors ${getIconColor("/account")}`} />
-          <span className={`text-[9px] font-medium transition-colors ${getIconColor("/account")}`}>PERFIL</span>
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/account")}`}>PERFIL</span>
         </Link>
       </div>
 
       {/* Menu Mobile (fixo no rodapé) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[100]">
-        <div className="relative">
-          {/* Botão central flutuante (acima da barra) */}
-          <div className="absolute left-1/2 -translate-x-1/2 -top-6 z-[120]">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-[#2a3441] animate-ping opacity-20"></div>
-              <div className="absolute inset-0 rounded-full bg-[#2a3441] animate-ping opacity-10 animation-delay-300"></div>
-              <button className="relative bg-gradient-to-br from-[#2a3441] to-[#1e2a42] rounded-full p-4 shadow-2xl transform transition-all duration-300 hover:scale-110 active:scale-95">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 to-transparent"></div>
-                <TrendingUp className="relative w-8 h-8 text-white drop-shadow-lg" />
-              </button>
-            </div>
-          </div>
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
+        <div className="flex items-center justify-around px-2 py-2">
+          {/* Gráficos */}
+          <Link
+            href="/trading"
+            className={`p-2 rounded-lg transition-all ${
+              isActive("/trading") ? "bg-black" : "hover:bg-gray-100"
+            }`}
+          >
+            <BarChart3 className={`w-5 h-5 ${isActive("/trading") ? "text-white" : "text-gray-600"}`} />
+          </Link>
 
-          {/* Barra inferior */}
-          <div className="relative z-[110] overflow-visible bg-[#141d2f] backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50 rounded-[2.5rem] mb-2 mx-4">
-            <div className="flex items-center justify-around px-4 py-2">
-              {/* Gráficos */}
-              <Link
-                href="/trading"
-                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
-              >
-                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/trading")}`}>
-                  <BarChart3 className={`w-5 h-5 ${getMobileIconColor("/trading")}`} />
-                </div>
-                <span className={`text-[9px] font-medium ${getMobileIconColor("/trading")}`}>Gráficos</span>
-              </Link>
+          {/* Depósito */}
+          <Link
+            href="/deposit"
+            className={`p-2 rounded-lg transition-all ${
+              isActive("/deposit") ? "bg-black" : "hover:bg-gray-100"
+            }`}
+          >
+            <CreditCard className={`w-5 h-5 ${isActive("/deposit") ? "text-white" : "text-gray-600"}`} />
+          </Link>
 
-              {/* Depósito */}
-              <Link
-                href="/deposit"
-                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
-              >
-                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/deposit")}`}>
-                  <CreditCard className={`w-5 h-5 ${getMobileIconColor("/deposit")}`} />
-                </div>
-                <span className={`text-[9px] font-medium ${getMobileIconColor("/deposit")}`}>Depósito</span>
-              </Link>
+          {/* Perfil */}
+          <Link
+            href="/account"
+            className={`p-2 rounded-lg transition-all ${
+              isActive("/account") ? "bg-black" : "hover:bg-gray-100"
+            }`}
+          >
+            <User className={`w-5 h-5 ${isActive("/account") ? "text-white" : "text-gray-600"}`} />
+          </Link>
 
-              {/* Espaço para o botão central */}
-              <div className="w-12" />
+          {/* Saque */}
+          <Link
+            href="/saque"
+            className={`p-2 rounded-lg transition-all ${
+              isActive("/saque") ? "bg-black" : "hover:bg-gray-100"
+            }`}
+          >
+            <ArrowUpDown className={`w-5 h-5 ${isActive("/saque") ? "text-white" : "text-gray-600"}`} />
+          </Link>
 
-              {/* Saque */}
-              <Link
-                href="/saque"
-                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
-              >
-                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/saque")}`}>
-                  <ArrowUpDown className={`w-5 h-5 ${getMobileIconColor("/saque")}`} />
-                </div>
-                <span className={`text-[9px] font-medium ${getMobileIconColor("/saque")}`}>Saque</span>
-              </Link>
-
-              <Link
-                href={config.support_link || "/Suporte"}
-                className="flex flex-col items-center space-y-0.5 p-0.5 transition-all duration-300 transform hover:scale-110 active:scale-95"
-              >
-                <div className={`p-1 rounded-lg transition-all duration-300 ${getMobileBackgroundColor("/Suporte")}`}>
-                  <PhoneCall className={`w-5 h-5 ${getMobileIconColor("/Suporte")}`} />
-                </div>
-                <span className={`text-[9px] font-medium ${getMobileIconColor("/Suporte")}`}>Suporte</span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="text-center pb-2">
-            <div className="text-xs text-gray-400 font-medium">{getPageLabel()}</div>
-          </div>
+          {/* Suporte */}
+          <Link
+            href={config.support_link || "/suporte"}
+            className={`p-2 rounded-lg transition-all ${
+              isActive("/suporte") ? "bg-black" : "hover:bg-gray-100"
+            }`}
+          >
+            <PhoneCall className={`w-5 h-5 ${isActive("/suporte") ? "text-white" : "text-gray-600"}`} />
+          </Link>
         </div>
       </div>
     </>

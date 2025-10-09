@@ -37,6 +37,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Adding bull/bear colors for trading */
+  --bull: 142 76% 36%;
+  --bear: 0 84% 60%;
+  --chart-bg: 210 13% 9%;
 }
 
 .dark {
@@ -72,11 +76,15 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+  /* Adding bull/bear colors for trading */
+  --bull: 142 76% 36%;
+  --bear: 0 84% 60%;
+  --chart-bg: 210 13% 9%;
 }
 
 @theme inline {
-  --font-sans: var(--font-geist);
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -113,6 +121,10 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Adding bull/bear colors for trading */
+  --bull: 142 76% 36%;
+  --bear: 0 84% 60%;
+  --chart-bg: 210 13% 9%;
 }
 
 @layer base {
@@ -124,170 +136,51 @@
   }
 }
 
-/* Estilos específicos para a tela de login XBroker */
-.video-background {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
+/* Adding notification styles for trading alerts */
+.notification {
+  @apply bg-card border border-border rounded-lg p-4 shadow-lg mb-2;
+  animation: slideIn 0.3s ease-out;
 }
 
-.container-login {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 20px;
+.notification-win {
+  @apply border-green-500/50 bg-green-950/50;
 }
 
-.modal-sign__container {
-  background: #1e2329;
-  border-radius: 8px;
-  padding: 40px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+.notification-loss {
+  @apply border-red-500/50 bg-red-950/50;
 }
 
-.sign__title {
-  color: #fff;
-  font-size: 24px;
-  font-weight: 600;
-  text-align: center;
-  margin-bottom: 30px;
+.notification-exit {
+  animation: slideOut 0.3s ease-in;
 }
 
-.modal-sign__tabs-block {
-  display: flex;
-  border-bottom: 1px solid #2b3040;
-  margin-bottom: 30px;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.modal-sign__tab {
-  flex: 1;
-  padding: 15px;
-  text-align: center;
-  color: #8a8a8a;
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  transition: all 0.3s;
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
 }
 
-.modal-sign__tab.active {
-  color: #248f32;
-  border-bottom-color: #248f32;
+/* Adding button styles for CALL/PUT buttons */
+.btn-call {
+  @apply bg-green-600 hover:bg-green-700 text-white;
 }
 
-.modal-sign__input {
-  margin-bottom: 20px;
-}
-
-.modal-sign__input-label {
-  display: block;
-  color: #fff;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.modal-sign__input-value {
-  width: 100%;
-  padding: 12px 16px;
-  background: #2b3040;
-  border: 1px solid #3e4651;
-  border-radius: 4px;
-  color: #fff;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.3s;
-}
-
-.modal-sign__input-value:focus {
-  border-color: #248f32;
-}
-
-.modal-sign__input-tooltip {
-  color: #8a8a8a;
-  font-size: 12px;
-  margin-top: 5px;
-  line-height: 1.4;
-}
-
-.modal-sign__block-checked {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-sign__checked-container {
-  display: flex;
-  align-items: center;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.modal-sign__checked-container input {
-  margin-right: 8px;
-}
-
-.modal-sign__block-checked-forgot {
-  color: #248f32;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.modal-sign__block-checked-forgot:hover {
-  text-decoration: underline;
-}
-
-.modal-sign__block-button {
-  width: 100%;
-  background: #248f32;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 15px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: background-color 0.3s;
-  margin-bottom: 20px;
-}
-
-.modal-sign__block-button:hover:not(:disabled) {
-  background: #1f7a2b;
-}
-
-.modal-sign__block-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.modal-sign_support {
-  text-align: center;
-}
-
-.modal-sign_support a {
-  color: #248f32;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.modal-sign_support a:hover {
-  text-decoration: underline;
-}
-
-.notification-container {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  z-index: 1000;
+.btn-put {
+  @apply bg-red-600 hover:bg-red-700 text-white;
 }

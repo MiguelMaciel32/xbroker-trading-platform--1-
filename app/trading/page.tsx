@@ -1,816 +1,420 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Plus, Minus, TrendingUp, TrendingDown, ChevronDown } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { Toaster } from "@/components/ui/toaster"
-import TradingHeader from "@/components/trading-header"
-import TradingSidebar from "@/components/trading-sidebar"
-import { getUserBalance, updateUserBalance } from "@/lib/actions/balance"
 
-const SITE_CONFIG = {
-  platformName: "TradePro",
-  logoUrl:
-    "https://media.discordapp.net/attachments/1191807892936986756/1408228383128551534/Captura_de_Tela_2025-08-21_as_20.16.28-removebg-preview.png?ex=68a8fa62&is=68a7a8e2&hm=527693bc110e80e51760a1cfcc0b1e3a4616517b98b7fcf8a9fffa342ba6f059&=&format=webp&quality=lossless&width=1008&height=990",
-  supportUrl: "#suporte",
-  communityUrl: "#comunidade",
-  colors: {
-    primary: "#141d2f",
-    secondary: "#1E2329",
-    accent: "#2B3139",
-    border: "#2B3139",
-  },
-}
+import { useEffect, useState } from "react"
+import { TradingChart, type Order } from "@/components/TradingChart"
+import { TradingSidebar } from "@/components/TradingSidebar"
+import { MobileTradingPanel } from "@/components/MobileTradingPanel"
+import { SymbolEngine } from "@/lib/tradingEngine"
+import { SIM_CONFIG, SYMBOLS } from "@/config/symbols"
+import { toast } from "sonner"
 
-interface OTCAsset {
-  symbol: string
-  name: string
-  basePrice: number
-  volatility: number
-  payout: number
-  icon: string
-  currentPrice?: number
-}
+const TF_SPEED: Record<number, number> = { 5: 6, 10: 4, 15: 3, 30: 2, 60: 1, 300: 0.6 }
+const HEART_MS = 80
 
-interface CandleData {
-  time: Date
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
+const Index = () => {
+  const [engines] = useState(() => {
+    const map = new Map<string, SymbolEngine>()
+    SYMBOLS.forEach((s) => map.set(s.id, new SymbolEngine(s, SIM_CONFIG.keepHistoryMs)))
+    return map
+  })
 
-interface ActiveTrade {
-  id: string
-  asset: string
-  direction: "up" | "down"
-  entryPrice: number
-  startTime: number
-  duration: number
-  amount: number
-  payout: number
-  status: "active" | "won" | "lost"
-}
+  const [activeSymbol, setActiveSymbol] = useState(() => {
+    const highestPayoutSymbol = SYMBOLS.reduce((prev, curr) => (curr.payout > prev.payout ? curr : prev))
+    return highestPayoutSymbol.id
+  })
+  const [timeframe, setTimeframe] = useState(SIM_CONFIG.defaultTimeframe)
+  const [balance, setBalance] = useState(() => {
+    return Number.parseFloat(localStorage.getItem("saldo_v8") || "10000")
+  })
+  const [ordersOpen, setOrdersOpen] = useState<Order[]>(() => {
+    return JSON.parse(localStorage.getItem("ordersOpen_v8") || "[]")
+  })
+  const [ordersHist, setOrdersHist] = useState<any[]>(() => {
+    return JSON.parse(localStorage.getItem("ordersHist_v8") || "[]")
+  })
 
-interface TradeHistory {
-  id: string
-  asset: string
-  direction: "up" | "down"
-  entryPrice: number
-  exitPrice: number
-  amount: number
-  payout: number
-  result: "win" | "loss"
-  timestamp: number
-}
+  const currentEngine = engines.get(activeSymbol) || null
+  const currentSymbol = SYMBOLS.find((s) => s.id === activeSymbol) || null
 
-interface TradeMarker {
-  id: string
-  direction: "up" | "down"
-  price: number
-  timestamp: number
-  asset: string
-  amount: number
-}
+  const createOrderVisual = (order: Order) => {
+    const eng = engines.get(order.sym)
+    if (!eng) return
 
-const OTC_ASSETS: OTCAsset[] = [
-  { symbol: "BTC/USDT", name: "Bitcoin", basePrice: 65084.55, volatility: 2500.0, payout: 95, icon: "" },
-  { symbol: "TESLA-OTC-54", name: "Tesla", basePrice: 245.5, volatility: 15.8, payout: 98, icon: "" },
-  { symbol: "AAPL-OTC-33", name: "Apple", basePrice: 185.75, volatility: 8.25, payout: 97, icon: "" },
-  { symbol: "NVDA-OTC-21", name: "NVIDIA", basePrice: 875.3, volatility: 45.2, payout: 96, icon: "" },
-  { symbol: "EUR-CHF-OTC", name: "EUR/CHF", basePrice: 0.9456, volatility: 0.0085, payout: 88, icon: "" },
-]
+    const cands = eng.buildCandles(timeframe)
+    const candleIndex = cands.length - 1
 
-const TIME_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d"]
+    order.relX = candleIndex
+    order.relY = order.strike
 
-const TradingViewWidget = ({ symbol }: { symbol: string }) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [isWidgetLoading, setIsWidgetLoading] = useState(true)
+    const line = document.createElement("div")
+    line.className = `absolute h-0.5 pointer-events-none rounded ${
+      order.tipo === "CALL" ? "bg-[hsl(var(--bull))]" : "bg-[hsl(var(--bear))]"
+    }`
+    line.id = `line_${order.id}`
+    line.setAttribute("data-start-x", String(candleIndex))
+    line.setAttribute("data-end-time", String(order.endTimeMs))
+    line.setAttribute("data-tf-sec", String(order.tfSec))
+    document.getElementById("overlay")?.appendChild(line)
 
-  useEffect(() => {
-    if (!containerRef.current) return
+    const startCircle = document.createElement("div")
+    startCircle.className = `absolute w-3 h-3 rounded-full pointer-events-none transform -translate-x-1/2 -translate-y-1/2 ${
+      order.tipo === "CALL" ? "bg-[hsl(var(--bull))]" : "bg-[hsl(var(--bear))]"
+    }`
+    startCircle.id = `circle_start_${order.id}`
+    document.getElementById("overlay")?.appendChild(startCircle)
 
-    setIsWidgetLoading(true)
+    const endCircle = document.createElement("div")
+    endCircle.className = `absolute w-3 h-3 rounded-full pointer-events-none transform -translate-x-1/2 -translate-y-1/2 ${
+      order.tipo === "CALL" ? "bg-[hsl(var(--bull))]" : "bg-[hsl(var(--bear))]"
+    }`
+    endCircle.id = `circle_end_${order.id}`
+    document.getElementById("overlay")?.appendChild(endCircle)
 
-    containerRef.current.innerHTML = ""
+    const badge = document.createElement("div")
+    badge.className = `absolute flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-white text-sm whitespace-nowrap transform -translate-y-1/2 shadow-lg pointer-events-auto ${
+      order.tipo === "CALL" ? "bg-[hsl(var(--bull))]" : "bg-[hsl(var(--bear))]"
+    }`
+    badge.id = `ord_${order.id}`
 
-    const script = document.createElement("script")
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"
-    script.type = "text/javascript"
-    script.async = true
-    script.onload = () => setIsWidgetLoading(false)
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol:
-        symbol === "BTC/USDT"
-          ? "BINANCE:BTCUSDT"
-          : symbol === "TESLA-OTC-54"
-            ? "NASDAQ:TSLA"
-            : symbol === "AAPL-OTC-33"
-              ? "NASDAQ:AAPL"
-              : symbol === "NVDA-OTC-21"
-                ? "NASDAQ:NVDA"
-                : symbol === "EUR-CHF-OTC"
-                  ? "FX:EURCHF"
-                  : "BINANCE:BTCUSDT",
-      interval: "1",
-      timezone: "America/Sao_Paulo",
-      theme: "dark",
-      style: "1",
-      locale: "br",
-      toolbar_bg: "#181A20",
-      enable_publishing: false,
-      backgroundColor: "#181A20",
-      gridColor: "#2B3139",
-      hide_top_toolbar: false,
-      hide_legend: false,
-      save_image: false,
-      container_id: "tradingview_widget",
-    })
+    const arrowIcon =
+      order.tipo === "CALL"
+        ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 3L8 13M8 3L4 7M8 3L12 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 13L8 3M8 13L12 9M8 13L4 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
-    containerRef.current.appendChild(script)
-
-    return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = ""
-      }
-    }
-  }, [symbol])
-
-  return (
-    <div className="w-full h-full bg-[#181A20] relative">
-      {isWidgetLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#181A20] z-10">
-          <div className="text-gray-400 text-lg">Carregando gráfico...</div>
-        </div>
-      )}
-      <div ref={containerRef} id="tradingview_widget" className="w-full h-full" />
-    </div>
-  )
-}
-
-export default function TradingChart() {
-  const [selectedAsset, setSelectedAsset] = useState<OTCAsset>(OTC_ASSETS[0])
-  const [currentPrice, setCurrentPrice] = useState(selectedAsset.basePrice)
-  const [balance, setBalance] = useState(10001.96)
-  const [balanceType, setBalanceType] = useState<"demo" | "real">("demo")
-  const [realBalance, setRealBalance] = useState(0)
-  const [selectedTime, setSelectedTime] = useState("1m")
-  const [tradeAmount, setTradeAmount] = useState(1)
-  const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([])
-  const [tradeHistory, setTradeHistory] = useState<TradeHistory[]>([])
-  const [chartData, setChartData] = useState<CandleData[]>([])
-  const [candlestickData, setCandlestickData] = useState<
-    Array<{
-      time: string
-      open: number
-      high: number
-      low: number
-      close: number
-      volume: number
-    }>
-  >([])
-  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
-  const [assetPrices, setAssetPrices] = useState<Record<string, number>>({})
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [showAssetSelector, setShowAssetSelector] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [showMobileControls, setShowMobileControls] = useState(false)
-  const [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([])
-  const tradeTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
-
-  const { toast } = useToast()
-
-  const generateCandlestickData = () => {
-    const data = []
-    let currentPrice = selectedAsset.basePrice
-    const now = Date.now()
-
-    for (let i = 49; i >= 0; i--) {
-      const timeMultiplier =
-        selectedTime === "1m"
-          ? 60000
-          : selectedTime === "5m"
-            ? 300000
-            : selectedTime === "15m"
-              ? 900000
-              : selectedTime === "1h"
-                ? 3600000
-                : selectedTime === "4h"
-                  ? 14400000
-                  : 86400000
-
-      const time = new Date(now - i * timeMultiplier).toISOString()
-
-      const volatility = selectedAsset.volatility * 0.02
-      const change = (Math.random() - 0.5) * volatility
-      const open = currentPrice
-      const close = Math.max(0.01, currentPrice + change)
-
-      const high = Math.max(open, close) + Math.random() * volatility * 0.5
-      const low = Math.min(open, close) - Math.random() * volatility * 0.5
-
-      data.push({
-        time,
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(Math.max(0.01, low).toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume: Math.floor(Math.random() * 1000) + 100,
-      })
-
-      currentPrice = close
-    }
-
-    return data
+    badge.innerHTML = `
+      ${arrowIcon}
+      <span class="font-bold">${order.valor.toFixed(2).replace(".", ",")} R$</span>
+      <span class="timer font-semibold opacity-90"> • 00:00</span>
+    `
+    badge.setAttribute("data-symbol", order.sym)
+    document.getElementById("overlay")?.appendChild(badge)
   }
 
-  const addNewCandle = () => {
-    setCandlestickData((prevData) => {
-      const lastCandle = prevData[prevData.length - 1]
-      if (!lastCandle) return prevData
+  const resolveOrderGroup = (orders: Order[]) => {
+    const eng = engines.get(orders[0].sym)
+    if (!eng) return
 
-      const volatility = selectedAsset.volatility * 0.02
-      const change = (Math.random() - 0.5) * volatility
-      const open = lastCandle.close
-      const close = Math.max(0.01, open + change)
+    const closeCandlePrice = eng.closePriceAt(orders[0].endTimeMs, orders[0].tfSec, -3)
+    const closePrice = closeCandlePrice !== null ? closeCandlePrice : eng.price
 
-      const high = Math.max(open, close) + Math.random() * volatility * 0.3
-      const low = Math.min(open, close) - Math.random() * volatility * 0.3
+    const symbol = SYMBOLS.find((s) => s.id === orders[0].sym)
+    const payoutPct = (symbol?.payout || 80) / 100
 
-      const newCandle = {
-        time: new Date().toISOString(),
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(Math.max(0.01, low).toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume: Math.floor(Math.random() * 1000) + 100,
-      }
+    let totalPnL = 0
+    let winCount = 0
+    let lossCount = 0
 
-      setCurrentPrice(newCandle.close)
+    const lastOrder = orders[orders.length - 1]
+    const lastBadgeEl = document.getElementById(`ord_${lastOrder.id}`)
+    const savedLeft = lastBadgeEl?.style.left || "0px"
+    const savedTop = lastBadgeEl?.style.top || "0px"
+    const savedTransform = lastBadgeEl?.style.transform || ""
 
-      const newData = [...prevData, newCandle]
-      return newData.slice(-50) // Keep last 50 candles
-    })
-  }
+    orders.forEach((order) => {
+      const ganhou = order.tipo === "CALL" ? closePrice > order.strike : closePrice < order.strike
+      const pl = ganhou ? +(order.valor * payoutPct).toFixed(2) : -order.valor
+      totalPnL += pl
 
-  const loadUserBalance = async () => {
-    try {
-      const result = await getUserBalance()
-      if (result.success && result.data) {
-        setBalance(result.data.balance)
-        // For now, real balance is separate - you can extend this later
-        setRealBalance(0)
-      }
-    } catch (error) {
-      console.error("Error loading balance:", error)
-    }
-  }
-
-  const executeTrade = async (direction: "up" | "down") => {
-    const currentBalance = balanceType === "demo" ? balance : realBalance
-
-    if (currentBalance < tradeAmount) {
-      toast({
-        title: "Saldo Insuficiente",
-        description:
-          balanceType === "real"
-            ? "Você precisa fazer um depósito para operar com conta real"
-            : "Você não tem saldo suficiente para esta operação",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const newBalance = currentBalance - tradeAmount
-      await updateUserBalance({
-        balance: newBalance,
-        operation: "set",
-      })
-
-      if (balanceType === "demo") {
-        setBalance(newBalance)
+      if (ganhou) {
+        winCount++
+        setBalance((prev) => prev + order.valor + order.valor * payoutPct)
       } else {
-        setRealBalance(newBalance)
+        lossCount++
       }
-    } catch (error) {
-      console.error("Error updating balance:", error)
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar saldo. Tente novamente.",
-        variant: "destructive",
-      })
-      return
-    }
 
-    const timeInMinutes =
-      Number.parseInt(selectedTime.replace("m", "").replace("h", "")) * (selectedTime.includes("h") ? 60 : 1)
-    const duration = timeInMinutes * 60 * 1000
+      setOrdersHist((prev) => [...prev, { ...order, close: closePrice, ganhou, pl }])
 
-    const newTrade: ActiveTrade = {
-      id: Date.now().toString(),
-      asset: selectedAsset.symbol,
-      direction,
-      entryPrice: currentPrice,
-      startTime: Date.now(),
-      duration,
-      amount: tradeAmount,
-      payout: tradeAmount * (selectedAsset.payout / 100),
-      status: "active",
-    }
-
-    const newMarker: TradeMarker = {
-      id: newTrade.id,
-      direction,
-      price: currentPrice,
-      timestamp: Date.now(),
-      asset: selectedAsset.symbol,
-      amount: tradeAmount,
-    }
-
-    setTradeMarkers((prev) => [...prev, newMarker])
-    setActiveTrades((prev) => [...prev, newTrade])
-
-    const timer = setTimeout(() => {
-      finalizeTrade(newTrade.id)
-    }, duration)
-
-    tradeTimersRef.current.set(newTrade.id, timer)
-
-    toast({
-      title: `🚀 Trade ${direction === "up" ? "COMPRA" : "VENDA"} Executado!`,
-      description: `${selectedAsset.name} - R$ ${tradeAmount.toFixed(2)} • Preço: ${formatPrice(currentPrice)} • Retorno: R$ ${(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}`,
-      className:
-        direction === "up" ? "bg-green-900 border-green-600 text-white" : "bg-red-900 border-red-600 text-white",
+      const lineEl = document.getElementById(`line_${order.id}`)
+      const badgeEl = document.getElementById(`ord_${order.id}`)
+      const startCircle = document.getElementById(`circle_start_${order.id}`)
+      const endCircle = document.getElementById(`circle_end_${order.id}`)
+      lineEl?.remove()
+      badgeEl?.remove()
+      startCircle?.remove()
+      endCircle?.remove()
     })
-  }
 
-  const finalizeTrade = async (tradeId: string) => {
-    setActiveTrades((prev) => {
-      const trade = prev.find((t) => t.id === tradeId)
-      if (!trade) return prev
+    const badge = document.createElement("div")
+    const isMobile = window.innerWidth < 768
 
-      const currentAssetPrice = assetPrices[trade.asset] || currentPrice
-      const priceChange = currentAssetPrice - trade.entryPrice
+    if (isMobile) {
+      badge.className = `px-4 py-2.5 rounded-full font-bold text-white text-sm whitespace-nowrap shadow-lg flex items-center gap-2 ${
+        totalPnL >= 0
+          ? "bg-gradient-to-r from-[hsl(var(--bull))] to-[hsl(var(--bull))]/90"
+          : "bg-gradient-to-r from-[hsl(var(--bear))] to-[hsl(var(--bear))]/90"
+      }`
+      const sign = totalPnL >= 0 ? "✅" : "❌"
+      const resultText = totalPnL >= 0 ? "WIN" : "LOSS"
+      badge.innerHTML = `${sign} ${resultText} ${totalPnL >= 0 ? "+" : "-"}R$ ${Math.abs(totalPnL).toFixed(2)}`
 
-      let won = false
-      if (trade.direction === "up") {
-        won = priceChange > 0
-      } else {
-        won = priceChange < 0
+      const mobileContainer = document.getElementById("mobile-notifications")
+      if (mobileContainer) {
+        mobileContainer.appendChild(badge)
+        setTimeout(() => badge.remove(), 3500)
       }
-
-      const payout = won ? trade.amount + trade.payout : 0
-
-      if (won) {
-        const updateBalance = async () => {
-          try {
-            const currentBalance = balanceType === "demo" ? balance : realBalance
-            const newBalance = currentBalance + payout
-            await updateUserBalance({
-              balance: newBalance,
-              operation: "set",
-            })
-
-            if (balanceType === "demo") {
-              setBalance(newBalance)
-            } else {
-              setRealBalance(newBalance)
-            }
-          } catch (error) {
-            console.error("Error updating balance after win:", error)
-          }
-        }
-        updateBalance()
-      }
-
-      const historyEntry: TradeHistory = {
-        id: trade.id,
-        asset: trade.asset,
-        direction: trade.direction,
-        entryPrice: trade.entryPrice,
-        exitPrice: currentAssetPrice,
-        amount: trade.amount,
-        payout: won ? trade.payout : 0,
-        result: won ? "win" : "loss",
-        timestamp: Date.now(),
-      }
-
-      setTradeHistory((prevHistory) => [...prevHistory, historyEntry])
-
-      const priceChangePercent = ((priceChange / trade.entryPrice) * 100).toFixed(2)
-      toast({
-        title: won ? "🎉 TRADE VENCEDOR!" : "😔 Trade Perdedor",
-        description: won
-          ? `Ganhou R$ ${trade.payout.toFixed(2)}! • Variação: ${priceChangePercent}%`
-          : `Perdeu R$ ${trade.amount.toFixed(2)} • Variação: ${priceChangePercent}%`,
-        className: won ? "bg-green-900 border-green-600 text-white" : "bg-red-900 border-red-600 text-white",
-      })
-
-      const timer = tradeTimersRef.current.get(tradeId)
-      if (timer) {
-        clearTimeout(timer)
-        tradeTimersRef.current.delete(tradeId)
-      }
-
-      return prev.filter((t) => t.id !== tradeId)
-    })
-  }
-
-  const formatPrice = (price: number): string => {
-    if (selectedAsset.symbol.includes("EUR-CHF")) {
-      return price.toFixed(4)
-    } else if (price >= 1000) {
-      return price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     } else {
-      return price.toFixed(2)
+      badge.className = `absolute px-3 py-2 rounded-full font-bold text-white text-sm whitespace-nowrap shadow-lg ${
+        totalPnL >= 0
+          ? "bg-gradient-to-r from-[hsl(var(--bull))] to-[hsl(var(--bull))]/90"
+          : "bg-gradient-to-r from-[hsl(var(--bear))] to-[hsl(var(--bear))]/90"
+      }`
+      badge.id = `res_group_${lastOrder.id}`
+      badge.style.left = savedLeft
+      badge.style.top = savedTop
+      badge.style.transform = savedTransform
+      badge.style.pointerEvents = "none"
+      const sign = totalPnL >= 0 ? "+" : ""
+      badge.innerHTML = `${orders.length}x Resultado • ${sign}${totalPnL.toFixed(2)} R$`
+
+      document.getElementById("overlay")?.appendChild(badge)
+      setTimeout(() => badge.remove(), 3500)
     }
   }
 
-  const handleAssetChange = (asset: OTCAsset) => {
-    setSelectedAsset(asset)
-    setCurrentPrice(asset.basePrice)
-    setShowAssetSelector(false)
-    toast({
-      title: "Ativo Alterado",
-      description: `Agora negociando ${asset.name}`,
-      className: "bg-blue-900 border-blue-600 text-white",
-    })
-  }
+  const resolveOrder = (order: Order) => {
+    const eng = engines.get(order.sym)
+    if (!eng) return
 
-  const handleBalanceTypeChange = (type: "demo" | "real") => {
-    setBalanceType(type)
-  }
+    const closeCandlePrice = eng.closePriceAt(order.endTimeMs, order.tfSec, -3)
+    const closePrice = closeCandlePrice !== null ? closeCandlePrice : eng.price
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen)
-  }
+    const symbol = SYMBOLS.find((s) => s.id === order.sym)
+    const payoutPct = (symbol?.payout || 80) / 100
 
-  const closeSidebar = () => {
-    setSidebarOpen(false)
-  }
+    const ganhou = order.tipo === "CALL" ? closePrice > order.strike : closePrice < order.strike
+    const pl = ganhou ? +(order.valor * payoutPct).toFixed(2) : -order.valor
 
-  const currentBalance = balanceType === "demo" ? balance : realBalance
+    setOrdersHist((prev) => [...prev, { ...order, close: closePrice, ganhou, pl }])
 
-  useEffect(() => {
-    loadUserBalance()
-  }, [])
-
-  useEffect(() => {
-    setIsLoading(true)
-    const initialData = generateCandlestickData()
-    setCandlestickData(initialData)
-    setCurrentPrice(initialData[initialData.length - 1]?.close || selectedAsset.basePrice)
-    setIsLoading(false)
-
-    const interval = setInterval(addNewCandle, 3000)
-    const priceInterval = setInterval(() => {
-      setCandlestickData((prevData) => {
-        if (prevData.length === 0) return prevData
-        const lastCandle = prevData[prevData.length - 1]
-        const volatility = selectedAsset.volatility * 0.01
-        const change = (Math.random() - 0.5) * volatility
-        const newPrice = Math.max(0.01, lastCandle.close + change)
-        setCurrentPrice(newPrice)
-        return prevData
-      })
-    }, 1500)
-
-    return () => {
-      clearInterval(interval)
-      clearInterval(priceInterval)
-      tradeTimersRef.current.forEach((timer) => clearTimeout(timer))
+    if (ganhou) {
+      setBalance((prev) => prev + order.valor + order.valor * payoutPct)
     }
-  }, [selectedAsset, selectedTime])
+
+    const lineEl = document.getElementById(`line_${order.id}`)
+    const badgeEl = document.getElementById(`ord_${order.id}`)
+    const startCircle = document.getElementById(`circle_start_${order.id}`)
+    const endCircle = document.getElementById(`circle_end_${order.id}`)
+    
+    const savedLeft = badgeEl?.style.left || "0px"
+    const savedTop = badgeEl?.style.top || "0px"
+    
+    lineEl?.remove()
+    badgeEl?.remove()
+    startCircle?.remove()
+    endCircle?.remove()
+
+    const isMobile = window.innerWidth < 768
+
+    if (isMobile) {
+      const badge = document.createElement("div")
+      badge.className = `px-4 py-2.5 rounded-full font-bold text-white text-sm whitespace-nowrap shadow-lg flex items-center gap-2 ${
+        pl >= 0
+          ? "bg-gradient-to-r from-[hsl(var(--bull))] to-[hsl(var(--bull))]/90"
+          : "bg-gradient-to-r from-[hsl(var(--bear))] to-[hsl(var(--bear))]/90"
+      }`
+      const sign = pl >= 0 ? "✅" : "❌"
+      const resultText = pl >= 0 ? "WIN" : "LOSS"
+      badge.innerHTML = `${sign} ${resultText} ${pl >= 0 ? "+" : "-"}R$ ${Math.abs(pl).toFixed(2)}`
+
+      const mobileContainer = document.getElementById("mobile-notifications")
+      if (mobileContainer) {
+        mobileContainer.appendChild(badge)
+        setTimeout(() => badge.remove(), 3500)
+      }
+    } else {
+      const badge = document.createElement("div")
+      badge.className = `absolute px-3 py-2 rounded-full font-bold text-white text-sm whitespace-nowrap transform -translate-x-1/2 -translate-y-1/2 shadow-lg ${
+        pl >= 0
+          ? "bg-gradient-to-r from-[hsl(var(--bull))] to-[hsl(var(--bull))]/90"
+          : "bg-gradient-to-r from-[hsl(var(--bear))] to-[hsl(var(--bear))]/90"
+      }`
+      badge.id = `res_${order.id}`
+      const sign = pl >= 0 ? "+" : ""
+      badge.innerHTML = `Resultado • ${sign}${pl.toFixed(2)} R$`
+      badge.style.left = savedLeft
+      badge.style.top = savedTop
+      badge.style.pointerEvents = "none"
+
+      document.getElementById("overlay")?.appendChild(badge)
+      setTimeout(() => badge.remove(), 3500)
+    }
+  }
 
   useEffect(() => {
-    const cleanupInterval = setInterval(() => {
+    const interval = setInterval(() => {
       const now = Date.now()
-      setTradeMarkers((prev) => prev.filter((marker) => now - marker.timestamp < 300000))
-    }, 60000)
+      engines.forEach((eng) => {
+        const speed = eng.sym.id === activeSymbol ? TF_SPEED[timeframe] || 1 : 1
+        eng.step(now, speed)
+      })
+    }, HEART_MS)
 
-    return () => clearInterval(cleanupInterval)
-  }, [])
+    return () => clearInterval(interval)
+  }, [engines, activeSymbol, timeframe])
 
-  function handleBalanceUpdate(balance: number): void {
-    throw new Error("")
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now()
+
+      setOrdersOpen((prev) => {
+        const remaining: Order[] = []
+        const ordersToResolve: Order[] = []
+
+        prev.forEach((order) => {
+          const el = document.getElementById(`ord_${order.id}`)
+          if (el) {
+            const remain = Math.max(0, Math.ceil((order.endTimeMs - now) / 1000))
+            const mm = Math.floor(remain / 60)
+            const ss = remain % 60
+            const timerText = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+            const mutEl = el.querySelector(".timer")
+            if (mutEl) mutEl.textContent = ` • ${timerText}`
+          }
+
+          if (now >= order.endTimeMs) {
+            ordersToResolve.push(order)
+          } else {
+            remaining.push(order)
+          }
+        })
+
+        if (ordersToResolve.length > 0) {
+          const groupedOrders = new Map<string, Order[]>()
+
+          ordersToResolve.forEach((order) => {
+            const key = `${order.sym}_${order.endTimeMs}`
+            if (!groupedOrders.has(key)) {
+              groupedOrders.set(key, [])
+            }
+            groupedOrders.get(key)!.push(order)
+          })
+
+          groupedOrders.forEach((orders) => {
+            if (orders.length > 1) {
+              resolveOrderGroup(orders)
+            } else {
+              resolveOrder(orders[0])
+            }
+          })
+        }
+
+        return remaining
+      })
+    }, 300)
+
+    return () => clearInterval(interval)
+  }, [engines])
+
+  useEffect(() => {
+    localStorage.setItem("saldo_v8", String(balance))
+    localStorage.setItem("ordersOpen_v8", JSON.stringify(ordersOpen))
+    localStorage.setItem("ordersHist_v8", JSON.stringify(ordersHist))
+  }, [balance, ordersOpen, ordersHist])
+
+  useEffect(() => {
+    ordersOpen.forEach((order) => {
+      document.getElementById(`line_${order.id}`)?.remove()
+      document.getElementById(`ord_${order.id}`)?.remove()
+      document.getElementById(`circle_start_${order.id}`)?.remove()
+      document.getElementById(`circle_end_${order.id}`)?.remove()
+    })
+
+    ordersOpen.forEach((order) => {
+      createOrderVisual(order)
+    })
+  }, [timeframe])
+
+  const handleTrade = (type: "CALL" | "PUT", amount: number, expirationSec: number) => {
+    if (!isFinite(amount) || amount <= 0) {
+      toast.error("Valor inválido")
+      return
+    }
+    if (amount > balance) {
+      toast.error("Saldo insuficiente")
+      return
+    }
+
+    const eng = currentEngine
+    if (!eng) return
+
+    const strike = eng.price
+    const nowMs = Date.now()
+    const tfMs = expirationSec * 1000
+    const endBucketStart = Math.floor((nowMs + -3 * 3600 * 1000) / tfMs) * tfMs - -3 * 3600 * 1000
+    const endTimeMs = endBucketStart + tfMs
+
+    const order: Order = {
+      id: Date.now(),
+      sym: activeSymbol,
+      tipo: type,
+      valor: amount,
+      strike,
+      endTimeMs,
+      tfSec: expirationSec,
+    }
+
+    setOrdersOpen((prev) => [...prev, order])
+    setBalance((prev) => prev - amount)
+    createOrderVisual(order)
+
+    toast.success(`Ordem ${type} aberta: R$ ${amount.toFixed(2)}`)
+  }
+
+  const handleNewSeed = () => {
+    engines.forEach((eng) => {
+      eng.seed = Math.floor(Math.random() * 1e9)
+      eng.ticks = []
+      eng.price = eng.sym.initialPrice
+      eng.lastTick = Date.now()
+    })
+    toast.info("Novo seed gerado")
+  }
+
+  const handleReset = () => {
+    if (confirm("Apagar todos os dados locais?")) {
+      localStorage.clear()
+      window.location.reload()
+    }
   }
 
   return (
-    <div className="min-h-screen text-white font-sans overflow-x-hidden" style={{ backgroundColor: "#141d2f" }}>
-      <TradingHeader onBalanceUpdate={handleBalanceUpdate} />
+    <div className="flex flex-col h-screen bg-white text-black overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
+        <div className="hidden md:block">
+          <TradingSidebar
+            balance={balance}
+            onTrade={handleTrade}
+            onNewSeed={handleNewSeed}
+            onReset={handleReset}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            history={ordersHist}
+          />
+        </div>
 
-      <div className="hidden lg:block">
-        <TradingSidebar />
+        <TradingChart
+          engine={currentEngine}
+          timeframe={timeframe}
+          symbol={currentSymbol}
+          orders={ordersOpen}
+          onUpdateOrderVisuals={() => {}}
+          symbols={SYMBOLS}
+          activeSymbol={activeSymbol}
+          onSelectSymbol={setActiveSymbol}
+          engines={engines}
+          onTimeframeChange={setTimeframe}
+        />
       </div>
 
-      <div className="flex flex-col min-h-screen w-full">
-        <div className="flex-1 w-full">
-          <div
-            className="w-full h-[60vh] lg:h-[calc(100vh-70px)] flex items-center justify-center relative"
-            style={{ backgroundColor: "#141d2f" }}
-          >
-            <div className="w-full h-full relative">
-              {!isLoading ? (
-                <div className="w-full h-full mt-8 relative">
-                  <TradingViewWidget symbol={selectedAsset.symbol} />
-
-                  <div className="absolute inset-0 pointer-events-none z-10">
-                    {tradeMarkers
-                      .filter((marker) => marker.asset === selectedAsset.symbol)
-                      .map((marker, index) => {
-                        const timeElapsed = Date.now() - marker.timestamp
-                        const opacity = Math.max(0.3, 1 - timeElapsed / 300000)
-
-                        return (
-                          <div
-                            key={marker.id}
-                            className="absolute animate-bounce"
-                            style={{
-                              left: `${60 + ((index * 80) % 200)}px`,
-                              top: `${60 + ((index * 40) % 150)}px`,
-                              opacity: opacity,
-                            }}
-                          >
-                            <div
-                              className={`flex items-center space-x-2 px-2 py-1 rounded-md shadow-xl border ${
-                                marker.direction === "up"
-                                  ? "bg-green-800/95 border-green-400 text-green-100"
-                                  : "bg-red-800/95 border-red-400 text-red-100"
-                              } backdrop-blur-sm`}
-                            >
-                              <div
-                                className={`w-2 h-2 rounded-full animate-pulse ${
-                                  marker.direction === "up" ? "bg-green-300" : "bg-red-300"
-                                }`}
-                              />
-                              <div className="text-xs font-bold">{marker.direction === "up" ? "↗" : "↘"}</div>
-                              <div className="text-xs font-semibold">R$ {marker.amount.toFixed(2)}</div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-gray-400">Carregando gráfico...</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="lg:hidden bg-[#1E2329] border-t border-[#2B3139] w-full">
-          <div className="p-4 space-y-4 w-full">
-            <div className="flex gap-3 w-full">
-              <Button
-                onClick={() => executeTrade("up")}
-                disabled={currentBalance < tradeAmount}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-              >
-                <TrendingUp className="h-6 w-6 mr-2" />
-                COMPRAR
-              </Button>
-              <Button
-                onClick={() => executeTrade("down")}
-                disabled={currentBalance < tradeAmount}
-                className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-6 text-lg font-bold rounded-lg shadow-lg min-h-[64px] touch-manipulation transition-all duration-200 active:scale-95"
-              >
-                <TrendingDown className="h-6 w-6 mr-2" />
-                VENDER
-              </Button>
-            </div>
-
-            <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-              <div className="text-gray-400 text-xs mb-2">Ativo</div>
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-between text-white hover:bg-[#2B3139] p-3 border border-[#2B3139] bg-[#1E2329] text-sm min-h-[48px] touch-manipulation"
-                  onClick={() => setShowAssetSelector(!showAssetSelector)}
-                >
-                  <div className="text-left">
-                    <div className="font-semibold text-sm text-white">{selectedAsset.name}</div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="text-[#FCD535] font-bold text-xs">{selectedAsset.payout}%</div>
-                    <ChevronDown
-                      className={`h-4 w-4 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
-                    />
-                  </div>
-                </Button>
-                {showAssetSelector && (
-                  <div className="absolute bottom-full left-0 right-0 z-50 mb-1 max-h-[200px]">
-                    <div
-                      className="border border-[#2B3139] shadow-lg overflow-y-auto rounded"
-                      style={{ backgroundColor: "#1E2329" }}
-                    >
-                      {OTC_ASSETS.map((asset) => (
-                        <Button
-                          key={asset.symbol}
-                          variant="ghost"
-                          className={`w-full justify-between text-white p-3 text-sm transition-all duration-150 border-0 min-h-[44px] touch-manipulation ${
-                            selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
-                          }`}
-                          onClick={() => handleAssetChange(asset)}
-                        >
-                          <span className="font-semibold text-white">{asset.name}</span>
-                          <span className="text-[#FCD535] font-bold text-xs">{asset.payout}%</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3 w-full">
-              <div className="flex-1 rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-2">Valor</div>
-                <div className="flex items-center justify-between bg-gray-800 rounded p-2 min-h-[40px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0 touch-manipulation"
-                    onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="text-white font-semibold text-sm">R$ {tradeAmount.toFixed(2)}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-gray-600 rounded-full w-8 h-8 p-0 touch-manipulation"
-                    onClick={() => setTradeAmount(tradeAmount + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 text-center py-3 rounded w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-1">Retorno</div>
-                <div className="text-[#FCD535] font-bold text-sm">
-                  R$ {(tradeAmount * (selectedAsset.payout / 100)).toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            {activeTrades.length > 0 && (
-              <div className="rounded p-3 w-full" style={{ backgroundColor: "#181A20" }}>
-                <div className="text-gray-400 text-xs mb-3">Posições Ativas ({activeTrades.length})</div>
-                <div className="space-y-2">
-                  {activeTrades.map((trade) => (
-                    <div
-                      key={trade.id}
-                      className="flex justify-between items-center text-xs p-3 bg-gray-800 rounded min-h-[40px]"
-                    >
-                      <span className="text-white font-medium">{trade.asset}</span>
-                      <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
-                        {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="pb-4"></div>
-          </div>
-        </div>
-
-        <div
-          className="hidden lg:block w-80 border-l p-4 space-y-4 h-[calc(100vh-70px)] overflow-y-auto fixed right-0 top-[70px]"
-          style={{ backgroundColor: "#141d2f", borderColor: "#2B3139" }}
-        >
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "rgba(21, 29, 46, 1)ff" }}>
-            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Selecionar Ativo</div>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                className="w-full justify-between text-white hover:bg-[#2B3139] p-3 lg:p-4 border border-[#2B3139] bg-[#1E2329] transition-all duration-200"
-                onClick={() => setShowAssetSelector(!showAssetSelector)}
-              >
-                <div className="text-left">
-                  <div className="font-semibold text-sm lg:text-base text-white">{selectedAsset.name}</div>
-                  <div className="text-gray-400 text-xs lg:text-sm">{selectedAsset.symbol}</div>
-                </div>
-                <div className="flex items-center space-x-2 lg:space-x-3">
-                  <div className="text-right">
-                    <div className="text-green-400 font-bold text-xs lg:text-sm">{selectedAsset.payout}%</div>
-                    <div className="text-gray-500 text-xs">Payout</div>
-                  </div>
-                  <ChevronDown
-                    className={`h-4 w-4 lg:h-5 lg:w-5 transition-all duration-200 ${showAssetSelector ? "rotate-180" : ""} text-gray-400`}
-                  />
-                </div>
-              </Button>
-              {showAssetSelector && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1">
-                  <div
-                    className="border border-[#2B3139] shadow-lg max-h-60 overflow-y-auto"
-                    style={{ backgroundColor: "#1E2329" }}
-                  >
-                    <div className="p-1">
-                      {OTC_ASSETS.map((asset) => (
-                        <Button
-                          key={asset.symbol}
-                          variant="ghost"
-                          className={`w-full justify-between text-white p-3 lg:p-4 transition-all duration-150 border-0 ${
-                            selectedAsset.symbol === asset.symbol ? "bg-[#2B3139] text-white" : "hover:bg-[#2B3139]"
-                          }`}
-                          onClick={() => handleAssetChange(asset)}
-                        >
-                          <div className="text-left">
-                            <div className="font-semibold text-sm lg:text-base text-white">{asset.name}</div>
-                            <div className="text-gray-400 text-xs lg:text-sm">{asset.symbol}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-green-400 font-bold text-xs lg:text-sm">{asset.payout}%</div>
-                            <div className="text-gray-500 text-xs">Payout</div>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#172133ff" }}>
-            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Valor do Investimento</div>
-            <div className="flex items-center justify-between bg-gray-800 rounded-lg p-2 lg:p-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-gray-600 rounded-full w-7 h-7 lg:w-8 lg:h-8 p-0"
-                onClick={() => setTradeAmount(Math.max(1, tradeAmount - 1))}
-              >
-                <Minus className="h-3 w-3 lg:h-4 lg:w-4" />
-              </Button>
-              <span className="text-white font-semibold text-base lg:text-lg">R$ {tradeAmount.toFixed(2)}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-gray-600 rounded-full w-7 h-7 lg:w-8 lg:h-8 p-0"
-                onClick={() => setTradeAmount(tradeAmount + 1)}
-              >
-                <Plus className="h-3 w-3 lg:h-4 lg:w-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="rounded p-3 lg:p-4" style={{ backgroundColor: "#172133ff" }}>
-            <div className="text-gray-400 text-xs lg:text-sm mb-2 lg:mb-3">Executar Trade</div>
-            <div className="space-y-3">
-              <Button
-                onClick={() => executeTrade("up")}
-                disabled={currentBalance < tradeAmount}
-                className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
-              >
-                <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
-                COMPRAR
-              </Button>
-              <Button
-                onClick={() => executeTrade("down")}
-                disabled={currentBalance < tradeAmount}
-                className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-500 py-3 lg:py-4 text-base lg:text-lg font-bold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
-              >
-                <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
-                VENDER
-              </Button>
-            </div>
-            <div className="mt-3 text-center">
-              <div className="flex items-center justify-between mb-2 lg:mb-3">
-                <span className="text-white font-semibold text-sm lg:text-base">Posições Ativas</span>
-                <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-full text-xs">{activeTrades.length}</span>
-              </div>
-              {activeTrades.length > 0 ? (
-                <div className="space-y-2">
-                  {activeTrades.map((trade) => (
-                    <div
-                      key={trade.id}
-                      className="flex justify-between items-center text-xs p-3 bg-gray-800 rounded-lg"
-                    >
-                      <span className="text-white font-medium">{trade.asset}</span>
-                      <span className={trade.direction === "up" ? "text-green-400" : "text-red-400"}>
-                        {trade.direction === "up" ? "↗" : "↘"} R$ {trade.amount.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-gray-400 text-xs lg:text-sm text-center py-4 lg:py-6 border border-dashed border-gray-600 rounded-lg">
-                  Nenhuma posição ativa
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-      <Toaster />
+      <MobileTradingPanel
+        symbols={SYMBOLS}
+        activeSymbol={activeSymbol}
+        onSelectSymbol={setActiveSymbol}
+        balance={balance}
+        onTrade={handleTrade}
+      />
     </div>
   )
 }
+
+export default Index
