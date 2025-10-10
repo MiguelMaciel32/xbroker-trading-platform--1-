@@ -21,34 +21,30 @@ export default function DepositPage() {
   const cryptoOptions = [
     {
       name: "Bitcoin (BTC)",
-      icon: "https://aurumtraderbroker.site/Bitcoin-Logo.png",
+      icon: "/cryptos/btc.png",
       time: "5-60 min",
     },
     { 
       name: "Ethereum (ETH)", 
-      icon: "https://aurumtraderbroker.site/eth_w.webp", 
+      icon: "/cryptos/eth2.png", 
       time: "5-60 min",
     },
     { 
       name: "Cardano (ADA)", 
-      icon: "https://aurumtraderbroker.site/cardano.png", 
+      icon: "/cryptos/ada.png", 
       time: "5-60 min",
     },
     {
       name: "Litecoin (LTC)",
-      icon: "https://aurumtraderbroker.site/litecoin.png",
+      icon: "/cryptos/ltc.png",
       time: "5-60 min",
     },
     {
       name: "Binance Coin (BNB)",
-      icon: "https://aurumtraderbroker.site/1681906406binance-icon-png.png",
+      icon: "/cryptos/binance.png",
       time: "5-60 min",
     },
-    {
-      name: "DogeCoin",
-      icon: "https://aurumtraderbroker.site/hd-dogecoin-logo-icon-coin-png-701751694779734rtff9rbuve.png",
-      time: "5-60 min",
-    },
+    
   ]
 
   // Buscar saldo do usuário ao carregar a página
