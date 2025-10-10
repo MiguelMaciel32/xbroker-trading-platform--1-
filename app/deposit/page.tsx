@@ -418,7 +418,7 @@ export default function DepositPage() {
 
               <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl mb-6">
                 <div className="flex justify-between items-center">
-                  <span className="text-black font-medium">Aurum Broker</span>
+                  <span className="text-black font-medium">Quantium Broker</span>
                   <span className="text-black font-bold">
                     R$ {selectedAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>

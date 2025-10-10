@@ -141,16 +141,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-block">
-            <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 mx-auto">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-black">Aurum Broker</h1>
-          </div>
-          <p className="text-gray-600 mt-3 text-sm">Entre ou crie sua conta para começar a negociar</p>
+        <div className="flex justify-center mb-8">
+          <img className="w-40 h-40 object-contain" src="/logo/logo.png" alt="Logo" />
         </div>
 
         <div className="bg-gray-100 rounded-xl p-1 mb-6 flex">
