@@ -60,14 +60,14 @@ export default function AccountPage() {
           .single()
 
         if (!createError && newProfile) {
-          setFormData(prev => ({ ...prev, email: newProfile.email || user.email }))
+          setFormData(prev => ({ ...prev, email: newProfile.email || user.email || "" }))
           setBalance(Number(newProfile.balance) || 0)
         } else {
-          setFormData(prev => ({ ...prev, email: user.email }))
+          setFormData(prev => ({ ...prev, email: user.email || "" }))
         }
       } else {
         // Perfil encontrado
-        setFormData(prev => ({ ...prev, email: profile.email || user.email }))
+        setFormData(prev => ({ ...prev, email: profile.email || user.email || "" }))
         setBalance(Number(profile.balance) || 0)
       }
 
@@ -77,8 +77,9 @@ export default function AccountPage() {
         const parsedData = JSON.parse(savedData)
         setFormData(prev => ({
           ...prev,
-          ...parsedData
+          ...parsedData,
           // Email não vem do localStorage, sempre vem do banco
+          email: prev.email
         }))
       }
     } catch (error) {

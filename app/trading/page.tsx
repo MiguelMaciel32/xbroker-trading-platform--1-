@@ -23,15 +23,22 @@ const Index = () => {
     return highestPayoutSymbol.id
   })
   const [timeframe, setTimeframe] = useState(SIM_CONFIG.defaultTimeframe)
-  const [balance, setBalance] = useState(() => {
-    return Number.parseFloat(localStorage.getItem("saldo_v8") || "10000")
-  })
-  const [ordersOpen, setOrdersOpen] = useState<Order[]>(() => {
-    return JSON.parse(localStorage.getItem("ordersOpen_v8") || "[]")
-  })
-  const [ordersHist, setOrdersHist] = useState<any[]>(() => {
-    return JSON.parse(localStorage.getItem("ordersHist_v8") || "[]")
-  })
+  const [balance, setBalance] = useState(10000)
+  const [ordersOpen, setOrdersOpen] = useState<Order[]>([])
+  const [ordersHist, setOrdersHist] = useState<any[]>([])
+  const [isClient, setIsClient] = useState(false)
+
+  // Load from localStorage after component mounts (client-side only)
+  useEffect(() => {
+    setIsClient(true)
+    const savedBalance = localStorage.getItem("saldo_v8")
+    const savedOrdersOpen = localStorage.getItem("ordersOpen_v8")
+    const savedOrdersHist = localStorage.getItem("ordersHist_v8")
+
+    if (savedBalance) setBalance(Number.parseFloat(savedBalance))
+    if (savedOrdersOpen) setOrdersOpen(JSON.parse(savedOrdersOpen))
+    if (savedOrdersHist) setOrdersHist(JSON.parse(savedOrdersHist))
+  }, [])
 
   const currentEngine = engines.get(activeSymbol) || null
   const currentSymbol = SYMBOLS.find((s) => s.id === activeSymbol) || null
@@ -306,10 +313,12 @@ const Index = () => {
   }, [engines])
 
   useEffect(() => {
-    localStorage.setItem("saldo_v8", String(balance))
-    localStorage.setItem("ordersOpen_v8", JSON.stringify(ordersOpen))
-    localStorage.setItem("ordersHist_v8", JSON.stringify(ordersHist))
-  }, [balance, ordersOpen, ordersHist])
+    if (isClient) {
+      localStorage.setItem("saldo_v8", String(balance))
+      localStorage.setItem("ordersOpen_v8", JSON.stringify(ordersOpen))
+      localStorage.setItem("ordersHist_v8", JSON.stringify(ordersHist))
+    }
+  }, [balance, ordersOpen, ordersHist, isClient])
 
   useEffect(() => {
     ordersOpen.forEach((order) => {
@@ -375,6 +384,11 @@ const Index = () => {
       localStorage.clear()
       window.location.reload()
     }
+  }
+
+  // Don't render until client-side hydration is complete
+  if (!isClient) {
+    return null
   }
 
   return (
