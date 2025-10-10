@@ -35,7 +35,6 @@ export interface Order {
   resolved?: boolean
 }
 
-
 export const TradingChart = ({
   engine,
   timeframe,
@@ -107,10 +106,19 @@ export const TradingChart = ({
     const canvas = canvasRef.current
     if (!canvas || !engine) return
 
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext("2d", { 
+      alpha: false,
+      desynchronized: true,
+      willReadFrequently: false
+    })
     if (!ctx) return
 
+    let lastOrderUpdate = 0
+    const orderThrottle = 150
+
     const draw = () => {
+      const now = performance.now()
+
       const W = canvas.width
       const H = canvas.height
       const cands = engine.buildCandles(timeframe, -3)
@@ -176,13 +184,16 @@ export const TradingChart = ({
       ctx.stroke()
       ctx.setLineDash([])
 
-      // Price labels
+      // Price labels (desenhar menos labels no mobile)
+      const isMobile = W < 768
+      const labelStep = isMobile ? 2 : 1
+      
       ctx.fillStyle = "hsl(210 10% 60%)"
       ctx.textAlign = "right"
       ctx.textBaseline = "middle"
       ctx.font = "11px Montserrat, sans-serif"
 
-      for (let i = 0; i <= n; i++) {
+      for (let i = 0; i <= n; i += labelStep) {
         const p = min + ((max - min) * i) / n
         const y = priceToY(p, min, max, H)
         ctx.fillText(p.toFixed(6), W - 6, y)
@@ -193,9 +204,9 @@ export const TradingChart = ({
       const bw = Math.max(1, Math.round(scaleX * 0.72))
       const xRT = Math.round(worldX(rtIndex) + bw / 2) + 0.5
       const lastCandle = cands[rtIndex]
-      const yP = priceToY(price, min, max, H)
 
-      // Draw candles
+      // Draw candles (otimizado)
+      ctx.save()
       for (let i = Math.max(0, firstIdx); i < Math.min(cands.length, lastIdx); i++) {
         const c = cands[i]
         const x = Math.round(worldX(i))
@@ -205,22 +216,24 @@ export const TradingChart = ({
         const yL = priceToY(c.l, min, max, H)
         const bull = c.c >= c.o
 
-        // Wick (pavio)
-        ctx.strokeStyle = bull ? "hsl(142 76% 36%)" : "hsl(0 84% 60%)"
-        ctx.lineWidth = 1
+        const color = bull ? "hsl(142 76% 36%)" : "hsl(0 84% 60%)"
+        
+        // Wick
+        ctx.strokeStyle = color
         ctx.beginPath()
         ctx.moveTo(x + bw / 2, yH)
         ctx.lineTo(x + bw / 2, yL)
         ctx.stroke()
 
         // Body
-        ctx.fillStyle = bull ? "hsl(142 76% 36%)" : "hsl(0 84% 60%)"
+        ctx.fillStyle = color
         const top = Math.min(yO, yC)
         const h = Math.max(1, Math.abs(yO - yC))
         ctx.fillRect(x, top, bw, h)
       }
+      ctx.restore()
 
-      // Linha vertical atrás das velas (pontilhado) - desenhar depois das velas para ficar por baixo do pavio
+      // Linha vertical atrás das velas (pontilhado)
       ctx.strokeStyle = "hsl(210 10% 40% / 0.5)"
       ctx.lineWidth = 1
       ctx.setLineDash([4, 4])
@@ -248,12 +261,11 @@ export const TradingChart = ({
 
         const timerWidth = 60
         const timerHeight = 24
-        const offsetRight = 40 // Distância do candle para a direita
+        const offsetRight = 40
         const timerX = Math.max(10, Math.min(W - timerWidth - 10, xRT + offsetRight))
-        // Timer centralizado exatamente na linha horizontal
         const timerY = Math.round(yPriceLineExact - timerHeight / 2)
 
-        // Desenhar linha horizontal ANTES do timer para ficar por baixo
+        // Desenhar linha horizontal ANTES do timer
         ctx.strokeStyle = "hsl(210 10% 40%)"
         ctx.lineWidth = 2
         ctx.beginPath()
@@ -275,85 +287,74 @@ export const TradingChart = ({
         ctx.fillText(timerText, timerX + timerWidth / 2, timerY + timerHeight / 2)
       }
 
-      // Update order visuals
-      updateOrderPositions(cands, min, max, H, W)
+      // Update order visuals (throttled)
+      if (now - lastOrderUpdate > orderThrottle) {
+        lastOrderUpdate = now
+        updateOrderPositions(cands, min, max, H, W)
+      }
     }
 
     const updateOrderPositions = (cands: Candle[], min: number, max: number, H: number, W: number) => {
-      const now = Date.now()
-      const Y_THRESHOLD = 30 // Distância em pixels para considerar sobreposição
-      const HORIZONTAL_OFFSET = 200 // Deslocamento horizontal em pixels (aumentado para evitar sobreposição)
+      const Y_THRESHOLD = 30
+      const HORIZONTAL_OFFSET = 200
 
-      orders.forEach((order, index) => {
-        const lineEl = document.getElementById(`line_${order.id}`)
-        const badgeEl = document.getElementById(`ord_${order.id}`)
-        const startCircle = document.getElementById(`circle_start_${order.id}`)
-        const endCircle = document.getElementById(`circle_end_${order.id}`)
+      // Usar requestAnimationFrame para updates de DOM
+      requestAnimationFrame(() => {
+        orders.forEach((order, index) => {
+          const lineEl = document.getElementById(`line_${order.id}`)
+          const badgeEl = document.getElementById(`ord_${order.id}`)
+          const startCircle = document.getElementById(`circle_start_${order.id}`)
+          const endCircle = document.getElementById(`circle_end_${order.id}`)
 
-        if (!lineEl || !badgeEl) return
+          if (!lineEl || !badgeEl) return
 
-        // Obter engine correto para este símbolo
-        const orderEngine = engines.get(order.sym)
-        if (!orderEngine) return
+          const orderEngine = engines.get(order.sym)
+          if (!orderEngine) return
 
-        // Reconstruir candles com o timeframe ATUAL do gráfico
-        const orderCands = orderEngine.buildCandles(timeframe)
+          const orderCands = orderEngine.buildCandles(timeframe)
 
-        // Recalcular relX baseado no timeframe atual
-        const startTimeMs = order.endTimeMs - order.tfSec * 1000
-        const candleCountInOrder = Math.ceil(order.tfSec / timeframe)
+          const startTimeMs = order.endTimeMs - order.tfSec * 1000
+          const candleCountInOrder = Math.ceil(order.tfSec / timeframe)
 
-        // Encontrar índice do candle atual baseado no timestamp de início
-        let currentCandleIndex = orderCands.findIndex((c) => c.t >= startTimeMs)
-        if (currentCandleIndex === -1) currentCandleIndex = orderCands.length - 1
+          let currentCandleIndex = orderCands.findIndex((c) => c.t >= startTimeMs)
+          if (currentCandleIndex === -1) currentCandleIndex = orderCands.length - 1
 
-        // Usar preço strike original como relY
-        const y = priceToY(order.strike, min, max, H)
-        const bw = Math.max(1, Math.round(scaleX * 0.72))
-        const xStart = worldX(currentCandleIndex) + bw / 2
+          const y = priceToY(order.strike, min, max, H)
+          const bw = Math.max(1, Math.round(scaleX * 0.72))
+          const xStart = worldX(currentCandleIndex) + bw / 2
 
-        // Calcular posição final baseado no número de candles do timeframe da operação
-        const endCandleIndex = currentCandleIndex + candleCountInOrder
-        const xEnd = worldX(endCandleIndex) + bw / 2
+          const endCandleIndex = currentCandleIndex + candleCountInOrder
+          const xEnd = worldX(endCandleIndex) + bw / 2
 
-        // Definir posição e largura da linha
-        lineEl.style.left = `${Math.round(xStart)}px`
-        lineEl.style.width = `${Math.max(0, Math.round(xEnd - xStart))}px`
-        lineEl.style.top = `${Math.round(y)}px`
+          // Usar transform ao invés de left/top para melhor performance
+          lineEl.style.transform = `translate(${Math.round(xStart)}px, ${Math.round(y)}px)`
+          lineEl.style.width = `${Math.max(0, Math.round(xEnd - xStart))}px`
 
-        // Posicionar círculos nas extremidades
-        if (startCircle) {
-          startCircle.style.left = `${Math.round(xStart)}px`
-          startCircle.style.top = `${Math.round(y)}px`
-        }
-
-        if (endCircle) {
-          endCircle.style.left = `${Math.round(xEnd)}px`
-          endCircle.style.top = `${Math.round(y)}px`
-        }
-
-        // Contar quantas operações POSTERIORES estão em posições Y similares
-        // Operações antigas (anteriores) vão para trás (esquerda)
-        let overlapCount = 0
-        for (let i = index + 1; i < orders.length; i++) {
-          const nextOrder = orders[i]
-          const nextY = priceToY(nextOrder.strike, min, max, H)
-
-          if (Math.abs(nextY - y) < Y_THRESHOLD) {
-            overlapCount++
+          if (startCircle) {
+            startCircle.style.transform = `translate(${Math.round(xStart)}px, ${Math.round(y)}px)`
           }
-        }
 
-        // Calcular deslocamento horizontal - operações antigas vão mais à esquerda
-        const horizontalOffset = overlapCount * HORIZONTAL_OFFSET
+          if (endCircle) {
+            endCircle.style.transform = `translate(${Math.round(xEnd)}px, ${Math.round(y)}px)`
+          }
 
-        // Badge à esquerda do candle de início com offset
-        // Garantir que não saia para fora do gráfico (mínimo 10px da borda)
-        const badgeWidth = 200 // Largura estimada da badge
-        const leftPosition = xStart - 10 - horizontalOffset
-        badgeEl.style.left = `${Math.max(badgeWidth + 10, leftPosition)}px`
-        badgeEl.style.top = `${Math.round(y)}px`
-        badgeEl.style.transform = "translate(-100%, -50%)"
+          let overlapCount = 0
+          for (let i = index + 1; i < orders.length; i++) {
+            const nextOrder = orders[i]
+            const nextY = priceToY(nextOrder.strike, min, max, H)
+
+            if (Math.abs(nextY - y) < Y_THRESHOLD) {
+              overlapCount++
+            }
+          }
+
+          const horizontalOffset = overlapCount * HORIZONTAL_OFFSET
+
+          const badgeWidth = 200
+          const leftPosition = xStart - 10 - horizontalOffset
+          badgeEl.style.left = `${Math.max(badgeWidth + 10, leftPosition)}px`
+          badgeEl.style.top = `${Math.round(y)}px`
+        })
       })
     }
 
@@ -362,9 +363,11 @@ export const TradingChart = ({
       draw()
       animationId = requestAnimationFrame(loop)
     }
-    loop()
+    animationId = requestAnimationFrame(loop)
 
-    return () => cancelAnimationFrame(animationId)
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId)
+    }
   }, [engine, timeframe, scaleX, translateX, follow, orders])
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -390,20 +393,11 @@ export const TradingChart = ({
       const cands = engine.buildCandles(timeframe)
       const newTranslateX = dragStartTX + (e.clientX - dragStartX)
 
-      // Calcular limites
       const bw = Math.max(1, Math.round(scaleX * 0.72))
-      const firstCandleX = worldX(0)
-      const lastCandleX = worldX(cands.length - 1) + bw
-
-      // Limite direito: primeiro candle não pode passar da direita da tela
       const maxTranslateX = canvas.width - bw
-
-      // Limite esquerdo: último candle não pode passar da esquerda da tela
       const minTranslateX = -((cands.length - 1) * scaleX)
 
-      // Aplicar limites
-      const limitedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX))
-      setTranslateX(limitedTranslateX)
+      setTranslateX(Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX)))
     }
   }
 
@@ -413,12 +407,10 @@ export const TradingChart = ({
 
   return (
     <div className="relative flex-1 bg-[hsl(var(--chart-bg))]">
-      {/* Timeframe Menu - apenas mobile (canto superior esquerdo) */}
       <div className="absolute top-3 left-3 z-20 pointer-events-auto md:hidden">
         <TimeframeMenu timeframe={timeframe} onTimeframeChange={onTimeframeChange} />
       </div>
 
-      {/* SymbolPills - desktop only */}
       <div className="hidden md:block absolute top-3 left-3 right-3 z-20 pointer-events-auto">
         <SymbolPills
           symbols={symbols}
@@ -444,16 +436,23 @@ export const TradingChart = ({
       <div className="relative w-full h-full md:pb-0 pb-[280px]">
         <canvas
           ref={canvasRef}
-          className="w-full h-full cursor-move"
+          className="w-full h-full cursor-move touch-none select-none"
+          style={{ 
+            willChange: 'transform',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden'
+          }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onTouchStart={handleMouseDown as any}
+          onTouchMove={handleMouseMove as any}
+          onTouchEnd={handleMouseUp}
         />
 
         <div ref={overlayRef} id="overlay" className="absolute inset-0 pointer-events-none z-0">
-          {/* Container for top notifications on mobile */}
           <div
             id="mobile-notifications"
             className="md:hidden absolute top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"
