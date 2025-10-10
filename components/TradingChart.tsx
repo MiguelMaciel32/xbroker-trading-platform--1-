@@ -57,6 +57,9 @@ export const TradingChart = ({
   const [dragStartTX, setDragStartTX] = useState(0)
   const [canvasTimer, setCanvasTimer] = useState("00:00")
   const [showFollowButton, setShowFollowButton] = useState(false)
+  
+  // Refs para performance
+  const touchStartRef = useRef<{ x: number; time: number } | null>(null)
 
   const minScaleX = 4
   const maxScaleX = 80
@@ -114,25 +117,32 @@ export const TradingChart = ({
     if (!ctx) return
 
     let lastOrderUpdate = 0
-    const orderThrottle = 150
+    let frameCount = 0
+    const orderThrottle = 300
 
-    const draw = () => {
-      const now = performance.now()
-
+    const draw = (timestamp: number) => {
+      frameCount++
       const W = canvas.width
       const H = canvas.height
       const cands = engine.buildCandles(timeframe, -3)
       const price = engine.price
 
+      if (cands.length === 0) return
+
+      const isMobile = W < 768
+
       // Follow mode
       if (follow && cands.length) {
         const bw = Math.max(1, Math.round(scaleX * 0.72))
         const L = cands.length - 1
-        setTranslateX(W / 2 - L * scaleX - bw / 2)
+        const newTx = W / 2 - L * scaleX - bw / 2
+        if (Math.abs(newTx - translateX) > 1) {
+          setTranslateX(newTx)
+        }
       }
 
-      // Verificar se o último candle está visível na tela
-      if (cands.length > 0) {
+      // Verificar visibilidade (só a cada 10 frames no mobile)
+      if (!isMobile || frameCount % 10 === 0) {
         const bw = Math.max(1, Math.round(scaleX * 0.72))
         const lastCandleX = worldX(cands.length - 1) + bw / 2
         const isLastCandleVisible = lastCandleX >= 0 && lastCandleX <= W
@@ -140,7 +150,6 @@ export const TradingChart = ({
       }
 
       ctx.clearRect(0, 0, W, H)
-      if (cands.length === 0) return
 
       const firstIdx = Math.floor(invWorldX(0)) - 1
       const lastIdx = Math.ceil(invWorldX(W)) + 1
@@ -159,54 +168,54 @@ export const TradingChart = ({
         max = price * 1.001
       }
 
-      // Draw grid (pontilhado suave)
-      ctx.strokeStyle = "hsl(210 10% 20% / 0.3)"
-      ctx.lineWidth = 1
-      ctx.setLineDash([3, 3])
-      ctx.beginPath()
+      // Grid - só desenha se não estiver arrastando
+      if (!dragging) {
+        ctx.strokeStyle = "hsl(210 10% 20% / 0.3)"
+        ctx.lineWidth = 1
+        ctx.setLineDash([3, 3])
+        ctx.beginPath()
 
-      const step = Math.max(1, Math.round(100 / scaleX))
-      const first = Math.floor(invWorldX(0)) - 1
-      const last = Math.ceil(invWorldX(W)) + 1
+        const step = Math.max(1, Math.round(isMobile ? 150 : 100 / scaleX))
+        const first = Math.floor(invWorldX(0)) - 1
+        const last = Math.ceil(invWorldX(W)) + 1
 
-      for (let i = first; i <= last; i += step) {
-        const x = Math.round(worldX(i)) + 0.5
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, H)
+        for (let i = first; i <= last; i += step) {
+          const x = Math.round(worldX(i)) + 0.5
+          ctx.moveTo(x, 0)
+          ctx.lineTo(x, H)
+        }
+
+        const n = isMobile ? 4 : 8
+        for (let i = 1; i < n; i++) {
+          const y = Math.round((H / n) * i) + 0.5
+          ctx.moveTo(0, y)
+          ctx.lineTo(W, y)
+        }
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Price labels
+        ctx.fillStyle = "hsl(210 10% 60%)"
+        ctx.textAlign = "right"
+        ctx.textBaseline = "middle"
+        ctx.font = isMobile ? "10px sans-serif" : "11px Montserrat, sans-serif"
+
+        for (let i = 0; i <= n; i++) {
+          const p = min + ((max - min) * i) / n
+          const y = priceToY(p, min, max, H)
+          ctx.fillText(p.toFixed(isMobile ? 5 : 6), W - 6, y)
+        }
       }
 
-      const n = 8
-      for (let i = 1; i < n; i++) {
-        const y = Math.round((H / n) * i) + 0.5
-        ctx.moveTo(0, y)
-        ctx.lineTo(W, y)
-      }
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Price labels (desenhar menos labels no mobile)
-      const isMobile = W < 768
-      const labelStep = isMobile ? 2 : 1
-      
-      ctx.fillStyle = "hsl(210 10% 60%)"
-      ctx.textAlign = "right"
-      ctx.textBaseline = "middle"
-      ctx.font = "11px Montserrat, sans-serif"
-
-      for (let i = 0; i <= n; i += labelStep) {
-        const p = min + ((max - min) * i) / n
-        const y = priceToY(p, min, max, H)
-        ctx.fillText(p.toFixed(6), W - 6, y)
-      }
-
-      // Preparar para linha vertical e horizontal
       const rtIndex = cands.length - 1
       const bw = Math.max(1, Math.round(scaleX * 0.72))
       const xRT = Math.round(worldX(rtIndex) + bw / 2) + 0.5
       const lastCandle = cands[rtIndex]
 
-      // Draw candles (otimizado)
-      ctx.save()
+      // Draw candles - otimizado
+      const bullColor = "hsl(142 76% 36%)"
+      const bearColor = "hsl(0 84% 60%)"
+      
       for (let i = Math.max(0, firstIdx); i < Math.min(cands.length, lastIdx); i++) {
         const c = cands[i]
         const x = Math.round(worldX(i))
@@ -215,65 +224,61 @@ export const TradingChart = ({
         const yH = priceToY(c.h, min, max, H)
         const yL = priceToY(c.l, min, max, H)
         const bull = c.c >= c.o
-
-        const color = bull ? "hsl(142 76% 36%)" : "hsl(0 84% 60%)"
+        const color = bull ? bullColor : bearColor
+        
+        ctx.strokeStyle = color
+        ctx.fillStyle = color
         
         // Wick
-        ctx.strokeStyle = color
         ctx.beginPath()
         ctx.moveTo(x + bw / 2, yH)
         ctx.lineTo(x + bw / 2, yL)
         ctx.stroke()
 
         // Body
-        ctx.fillStyle = color
         const top = Math.min(yO, yC)
         const h = Math.max(1, Math.abs(yO - yC))
         ctx.fillRect(x, top, bw, h)
       }
-      ctx.restore()
 
-      // Linha vertical atrás das velas (pontilhado)
-      ctx.strokeStyle = "hsl(210 10% 40% / 0.5)"
-      ctx.lineWidth = 1
-      ctx.setLineDash([4, 4])
+      // Linha vertical e timer - só se não arrastar
+      if (!dragging) {
+        ctx.strokeStyle = "hsl(210 10% 40% / 0.5)"
+        ctx.lineWidth = 1
+        ctx.setLineDash([4, 4])
+        ctx.beginPath()
+        ctx.moveTo(xRT, 0)
+        ctx.lineTo(xRT, H)
+        ctx.stroke()
+        ctx.setLineDash([])
 
-      ctx.beginPath()
-      ctx.moveTo(xRT, 0)
-      ctx.lineTo(xRT, H)
-      ctx.stroke()
+        const yPriceLineExact = priceToY(lastCandle.c, min, max, H)
 
-      ctx.setLineDash([])
-
-      // Timer box - calcular primeiro para sincronizar com a linha
-      const yPriceLineExact = priceToY(lastCandle.c, min, max, H)
-
-      if (cands.length > 0) {
+        // Timer - atualiza a cada frame
         const tfMs = timeframe * 1000
-        const now = Date.now()
-        const elapsed = now - lastCandle.t
+        const nowMs = Date.now()
+        const elapsed = nowMs - lastCandle.t
         const remaining = Math.max(0, tfMs - elapsed)
         const remainingSec = Math.ceil(remaining / 1000)
         const mm = Math.floor(remainingSec / 60)
         const ss = remainingSec % 60
         const timerText = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
-        setCanvasTimer(timerText)
 
-        const timerWidth = 60
-        const timerHeight = 24
-        const offsetRight = 40
+        const timerWidth = isMobile ? 50 : 60
+        const timerHeight = isMobile ? 20 : 24
+        const offsetRight = isMobile ? 30 : 40
         const timerX = Math.max(10, Math.min(W - timerWidth - 10, xRT + offsetRight))
         const timerY = Math.round(yPriceLineExact - timerHeight / 2)
 
-        // Desenhar linha horizontal ANTES do timer
+        // Linha horizontal
         ctx.strokeStyle = "hsl(210 10% 40%)"
-        ctx.lineWidth = 2
+        ctx.lineWidth = isMobile ? 1.5 : 2
         ctx.beginPath()
         ctx.moveTo(0, Math.round(yPriceLineExact) + 0.5)
         ctx.lineTo(W, Math.round(yPriceLineExact) + 0.5)
         ctx.stroke()
 
-        // Draw timer box sobre a linha
+        // Timer box
         ctx.fillStyle = "hsl(210 13% 9%)"
         ctx.fillRect(timerX, timerY, timerWidth, timerHeight)
         ctx.strokeStyle = "hsl(210 12% 15%)"
@@ -283,13 +288,13 @@ export const TradingChart = ({
         ctx.fillStyle = "hsl(210 10% 95%)"
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        ctx.font = "bold 12px Montserrat, sans-serif"
+        ctx.font = isMobile ? "bold 11px sans-serif" : "bold 12px Montserrat, sans-serif"
         ctx.fillText(timerText, timerX + timerWidth / 2, timerY + timerHeight / 2)
       }
 
-      // Update order visuals (throttled)
-      if (now - lastOrderUpdate > orderThrottle) {
-        lastOrderUpdate = now
+      // Update orders - bem menos frequente no mobile
+      if (timestamp - lastOrderUpdate > orderThrottle && !isMobile) {
+        lastOrderUpdate = timestamp
         updateOrderPositions(cands, min, max, H, W)
       }
     }
@@ -359,8 +364,8 @@ export const TradingChart = ({
     }
 
     let animationId: number
-    const loop = () => {
-      draw()
+    const loop = (timestamp: number) => {
+      draw(timestamp)
       animationId = requestAnimationFrame(loop)
     }
     animationId = requestAnimationFrame(loop)
@@ -368,7 +373,7 @@ export const TradingChart = ({
     return () => {
       if (animationId) cancelAnimationFrame(animationId)
     }
-  }, [engine, timeframe, scaleX, translateX, follow, orders])
+  }, [engine, timeframe, scaleX, translateX, follow, orders, dragging])
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault()
@@ -380,29 +385,37 @@ export const TradingChart = ({
     setTranslateX(mouseX - (mouseX - translateX) * (newScale / prev))
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
     setDragging(true)
-    setDragStartX(e.clientX)
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    setDragStartX(clientX)
     setDragStartTX(translateX)
     setFollow(false)
+    
+    if ('touches' in e) {
+      touchStartRef.current = { x: clientX, time: Date.now() }
+    }
   }
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragging && engine && canvasRef.current) {
-      const canvas = canvasRef.current
-      const cands = engine.buildCandles(timeframe)
-      const newTranslateX = dragStartTX + (e.clientX - dragStartX)
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!dragging || !engine || !canvasRef.current) return
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const canvas = canvasRef.current
+    const cands = engine.buildCandles(timeframe)
+    const newTranslateX = dragStartTX + (clientX - dragStartX)
 
-      const bw = Math.max(1, Math.round(scaleX * 0.72))
-      const maxTranslateX = canvas.width - bw
-      const minTranslateX = -((cands.length - 1) * scaleX)
+    const bw = Math.max(1, Math.round(scaleX * 0.72))
+    const maxTranslateX = canvas.width - bw
+    const minTranslateX = -((cands.length - 1) * scaleX)
 
-      setTranslateX(Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX)))
-    }
+    const limited = Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX))
+    setTranslateX(limited)
   }
 
   const handleMouseUp = () => {
     setDragging(false)
+    touchStartRef.current = null
   }
 
   return (
