@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import type { SymbolEngine, Candle } from "@/lib/tradingEngine"
 import type { SymbolConfig } from "@/config/symbols"
 import { SymbolPills } from "./SymbolPills"
@@ -55,24 +55,31 @@ export const TradingChart = ({
   const [dragging, setDragging] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartTX, setDragStartTX] = useState(0)
-  const [canvasTimer, setCanvasTimer] = useState("00:00")
   const [showFollowButton, setShowFollowButton] = useState(false)
-  
-  // Refs para performance
+
   const touchStartRef = useRef<{ x: number; time: number } | null>(null)
+  const lastOrderUpdateRef = useRef(0)
+  const frameCountRef = useRef(0)
+  const lastDrawTimeRef = useRef(0)
+  const isMobileRef = useRef(false)
+  const staticCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const lastGridDrawRef = useRef(0)
+  const lastTextDrawRef = useRef(0)
+  const cachedMinMaxRef = useRef<{ min: number; max: number; timestamp: number }>({ min: 0, max: 0, timestamp: 0 })
+  const followTranslateRef = useRef(translateX)
 
   const minScaleX = 4
   const maxScaleX = 80
 
-  const worldX = (i: number) => i * scaleX + translateX
-  const invWorldX = (x: number) => (x - translateX) / scaleX
-  const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b)
+  const worldX = useCallback((i: number) => i * scaleX + translateX, [scaleX, translateX])
+  const invWorldX = useCallback((x: number) => (x - translateX) / scaleX, [translateX, scaleX])
+  const clamp = useCallback((v: number, a: number, b: number) => Math.min(Math.max(v, a), b), [])
 
-  const priceToY = (p: number, min: number, max: number, height: number) => {
+  const priceToY = useCallback((p: number, min: number, max: number, height: number) => {
     return height - ((p - min) / (max - min)) * (height - 20) - 10
-  }
+  }, [])
 
-  const centerOnLatest = () => {
+  const centerOnLatest = useCallback(() => {
     if (!engine) return
     const cands = engine.buildCandles(timeframe)
     if (cands.length) {
@@ -80,22 +87,40 @@ export const TradingChart = ({
       if (!canvas) return
       const bw = Math.max(1, Math.round(scaleX * 0.72))
       const L = cands.length - 1
-      setTranslateX(canvas.width / 2 - L * scaleX - bw / 2)
+      const newTx = canvas.width / 2 - L * scaleX - bw / 2
+      followTranslateRef.current = newTx
+      setTranslateX(newTx)
     }
-  }
+  }, [engine, timeframe, scaleX])
 
   useEffect(() => {
     setFollow(true)
     centerOnLatest()
-  }, [timeframe, symbol])
+  }, [timeframe, symbol, centerOnLatest])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const resize = () => {
-      canvas.width = canvas.clientWidth
-      canvas.height = canvas.clientHeight
+      const dpr = 1
+      canvas.width = canvas.clientWidth * dpr
+      canvas.height = canvas.clientHeight * dpr
+      const ctx = canvas.getContext("2d")
+      if (ctx) {
+        ctx.scale(dpr, dpr)
+      }
+      isMobileRef.current = canvas.clientWidth < 768
+
+      if (!staticCanvasRef.current) {
+        staticCanvasRef.current = document.createElement("canvas")
+      }
+      staticCanvasRef.current.width = canvas.width
+      staticCanvasRef.current.height = canvas.height
+      const staticCtx = staticCanvasRef.current.getContext("2d")
+      if (staticCtx) {
+        staticCtx.scale(dpr, dpr)
+      }
     }
 
     const observer = new ResizeObserver(resize)
@@ -105,44 +130,121 @@ export const TradingChart = ({
     return () => observer.disconnect()
   }, [])
 
+  const updateOrderPositions = useCallback(
+    (cands: Candle[], min: number, max: number, H: number, W: number) => {
+      const Y_THRESHOLD = 30
+      const HORIZONTAL_OFFSET = 200
+
+      orders.forEach((order, index) => {
+        const lineEl = document.getElementById(`line_${order.id}`)
+        const badgeEl = document.getElementById(`ord_${order.id}`)
+        const startCircle = document.getElementById(`circle_start_${order.id}`)
+        const endCircle = document.getElementById(`circle_end_${order.id}`)
+
+        if (!lineEl || !badgeEl) return
+
+        const orderEngine = engines.get(order.sym)
+        if (!orderEngine) return
+
+        const orderCands = orderEngine.buildCandles(timeframe)
+
+        const startTimeMs = order.endTimeMs - order.tfSec * 1000
+        const candleCountInOrder = Math.ceil(order.tfSec / timeframe)
+
+        let currentCandleIndex = orderCands.findIndex((c) => c.t >= startTimeMs)
+        if (currentCandleIndex === -1) currentCandleIndex = orderCands.length - 1
+
+        const y = priceToY(order.strike, min, max, H)
+        const bw = Math.max(1, Math.round(scaleX * 0.72))
+        const xStart = worldX(currentCandleIndex) + bw / 2
+        const endCandleIndex = currentCandleIndex + candleCountInOrder
+        const xEnd = worldX(endCandleIndex) + bw / 2
+
+        lineEl.style.transform = `translate3d(${Math.round(xStart)}px, ${Math.round(y)}px, 0)`
+        lineEl.style.width = `${Math.max(0, Math.round(xEnd - xStart))}px`
+
+        if (startCircle) {
+          startCircle.style.transform = `translate3d(${Math.round(xStart)}px, ${Math.round(y)}px, 0)`
+        }
+
+        if (endCircle) {
+          endCircle.style.transform = `translate3d(${Math.round(xEnd)}px, ${Math.round(y)}px, 0)`
+        }
+
+        let overlapCount = 0
+        for (let i = index + 1; i < orders.length; i++) {
+          const nextOrder = orders[i]
+          const nextY = priceToY(nextOrder.strike, min, max, H)
+          if (Math.abs(nextY - y) < Y_THRESHOLD) {
+            overlapCount++
+          }
+        }
+
+        const horizontalOffset = overlapCount * HORIZONTAL_OFFSET
+        const badgeWidth = 200
+        const leftPosition = xStart - 10 - horizontalOffset
+        badgeEl.style.left = `${Math.max(badgeWidth + 10, leftPosition)}px`
+        badgeEl.style.top = `${Math.round(y)}px`
+      })
+    },
+    [orders, engines, timeframe, priceToY, scaleX, worldX],
+  )
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !engine) return
 
-    const ctx = canvas.getContext("2d", { 
+    const ctx = canvas.getContext("2d", {
       alpha: false,
       desynchronized: true,
-      willReadFrequently: false
+      willReadFrequently: false,
     })
     if (!ctx) return
 
-    let lastOrderUpdate = 0
-    let frameCount = 0
-    const orderThrottle = 300
+    const W = canvas.clientWidth
+    const H = canvas.clientHeight
+
+    const bullColor = "hsl(142 76% 36%)"
+    const bearColor = "hsl(0 84% 60%)"
+    const gridColor = "hsl(210 10% 20% / 0.3)"
+    const textColor = "hsl(210 10% 60%)"
+    const lineColor = "hsl(210 10% 40%)"
+
+    let animationId: number
+    let lastCandsLength = 0
 
     const draw = (timestamp: number) => {
-      frameCount++
-      const W = canvas.width
-      const H = canvas.height
+      const isMobile = isMobileRef.current
+
+      const targetFrameTime = isMobile ? 33 : 16
+      if (timestamp - lastDrawTimeRef.current < targetFrameTime) {
+        animationId = requestAnimationFrame(draw)
+        return
+      }
+      lastDrawTimeRef.current = timestamp
+
       const cands = engine.buildCandles(timeframe, -3)
       const price = engine.price
 
-      if (cands.length === 0) return
+      if (cands.length === 0) {
+        animationId = requestAnimationFrame(draw)
+        return
+      }
 
-      const isMobile = W < 768
-
-      // Follow mode
       if (follow && cands.length) {
         const bw = Math.max(1, Math.round(scaleX * 0.72))
         const L = cands.length - 1
-        const newTx = W / 2 - L * scaleX - bw / 2
-        if (Math.abs(newTx - translateX) > 1) {
-          setTranslateX(newTx)
+        const targetTx = W / 2 - L * scaleX - bw / 2
+
+        // Smooth interpolation instead of direct set
+        const diff = targetTx - followTranslateRef.current
+        if (Math.abs(diff) > 0.1) {
+          followTranslateRef.current += diff * 0.25 // Faster interpolation for more responsive feel
+          setTranslateX(followTranslateRef.current)
         }
       }
 
-      // Verificar visibilidade (só a cada 10 frames no mobile)
-      if (!isMobile || frameCount % 10 === 0) {
+      if (frameCountRef.current % 30 === 0) {
         const bw = Math.max(1, Math.round(scaleX * 0.72))
         const lastCandleX = worldX(cands.length - 1) + bw / 2
         const isLastCandleVisible = lastCandleX >= 0 && lastCandleX <= W
@@ -156,6 +258,7 @@ export const TradingChart = ({
 
       let min = Number.POSITIVE_INFINITY
       let max = Number.NEGATIVE_INFINITY
+
       for (let i = Math.max(0, firstIdx); i < Math.min(cands.length, lastIdx); i++) {
         const c = cands[i]
         if (!c) continue
@@ -168,9 +271,9 @@ export const TradingChart = ({
         max = price * 1.001
       }
 
-      // Grid - só desenha se não estiver arrastando
-      if (!dragging) {
-        ctx.strokeStyle = "hsl(210 10% 20% / 0.3)"
+      const shouldDrawGrid = frameCountRef.current % 60 === 0 || dragging
+      if (shouldDrawGrid) {
+        ctx.strokeStyle = gridColor
         ctx.lineWidth = 1
         ctx.setLineDash([3, 3])
         ctx.beginPath()
@@ -193,12 +296,14 @@ export const TradingChart = ({
         }
         ctx.stroke()
         ctx.setLineDash([])
+      }
 
-        // Price labels
-        ctx.fillStyle = "hsl(210 10% 60%)"
+      if (frameCountRef.current % 120 === 0) {
+        const n = isMobile ? 4 : 8
+        ctx.fillStyle = textColor
         ctx.textAlign = "right"
         ctx.textBaseline = "middle"
-        ctx.font = isMobile ? "10px sans-serif" : "11px Montserrat, sans-serif"
+        ctx.font = isMobile ? "10px sans-serif" : "11px sans-serif"
 
         for (let i = 0; i <= n; i++) {
           const p = min + ((max - min) * i) / n
@@ -212,10 +317,10 @@ export const TradingChart = ({
       const xRT = Math.round(worldX(rtIndex) + bw / 2) + 0.5
       const lastCandle = cands[rtIndex]
 
-      // Draw candles - otimizado
-      const bullColor = "hsl(142 76% 36%)"
-      const bearColor = "hsl(0 84% 60%)"
-      
+      ctx.save()
+      ctx.strokeStyle = bullColor
+      ctx.fillStyle = bullColor
+
       for (let i = Math.max(0, firstIdx); i < Math.min(cands.length, lastIdx); i++) {
         const c = cands[i]
         const x = Math.round(worldX(i))
@@ -225,10 +330,12 @@ export const TradingChart = ({
         const yL = priceToY(c.l, min, max, H)
         const bull = c.c >= c.o
         const color = bull ? bullColor : bearColor
-        
-        ctx.strokeStyle = color
-        ctx.fillStyle = color
-        
+
+        if ((bull && ctx.strokeStyle !== bullColor) || (!bull && ctx.strokeStyle !== bearColor)) {
+          ctx.strokeStyle = color
+          ctx.fillStyle = color
+        }
+
         // Wick
         ctx.beginPath()
         ctx.moveTo(x + bw / 2, yH)
@@ -240,10 +347,10 @@ export const TradingChart = ({
         const h = Math.max(1, Math.abs(yO - yC))
         ctx.fillRect(x, top, bw, h)
       }
+      ctx.restore()
 
-      // Linha vertical e timer - só se não arrastar
       if (!dragging) {
-        ctx.strokeStyle = "hsl(210 10% 40% / 0.5)"
+        ctx.strokeStyle = lineColor + "80"
         ctx.lineWidth = 1
         ctx.setLineDash([4, 4])
         ctx.beginPath()
@@ -254,7 +361,7 @@ export const TradingChart = ({
 
         const yPriceLineExact = priceToY(lastCandle.c, min, max, H)
 
-        // Timer - atualiza a cada frame
+        // Timer
         const tfMs = timeframe * 1000
         const nowMs = Date.now()
         const elapsed = nowMs - lastCandle.t
@@ -271,7 +378,7 @@ export const TradingChart = ({
         const timerY = Math.round(yPriceLineExact - timerHeight / 2)
 
         // Linha horizontal
-        ctx.strokeStyle = "hsl(210 10% 40%)"
+        ctx.strokeStyle = lineColor
         ctx.lineWidth = isMobile ? 1.5 : 2
         ctx.beginPath()
         ctx.moveTo(0, Math.round(yPriceLineExact) + 0.5)
@@ -288,135 +395,100 @@ export const TradingChart = ({
         ctx.fillStyle = "hsl(210 10% 95%)"
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        ctx.font = isMobile ? "bold 11px sans-serif" : "bold 12px Montserrat, sans-serif"
+        ctx.font = isMobile ? "bold 11px sans-serif" : "bold 12px sans-serif"
         ctx.fillText(timerText, timerX + timerWidth / 2, timerY + timerHeight / 2)
       }
 
-      // Update orders - bem menos frequente no mobile
-      if (timestamp - lastOrderUpdate > orderThrottle && !isMobile) {
-        lastOrderUpdate = timestamp
+      const orderThrottle = 500
+      const candsChanged = cands.length !== lastCandsLength
+      if ((timestamp - lastOrderUpdateRef.current > orderThrottle || candsChanged) && !dragging) {
+        lastOrderUpdateRef.current = timestamp
+        lastCandsLength = cands.length
         updateOrderPositions(cands, min, max, H, W)
       }
+
+      frameCountRef.current++
+      animationId = requestAnimationFrame(draw)
     }
 
-    const updateOrderPositions = (cands: Candle[], min: number, max: number, H: number, W: number) => {
-      const Y_THRESHOLD = 30
-      const HORIZONTAL_OFFSET = 200
-
-      // Usar requestAnimationFrame para updates de DOM
-      requestAnimationFrame(() => {
-        orders.forEach((order, index) => {
-          const lineEl = document.getElementById(`line_${order.id}`)
-          const badgeEl = document.getElementById(`ord_${order.id}`)
-          const startCircle = document.getElementById(`circle_start_${order.id}`)
-          const endCircle = document.getElementById(`circle_end_${order.id}`)
-
-          if (!lineEl || !badgeEl) return
-
-          const orderEngine = engines.get(order.sym)
-          if (!orderEngine) return
-
-          const orderCands = orderEngine.buildCandles(timeframe)
-
-          const startTimeMs = order.endTimeMs - order.tfSec * 1000
-          const candleCountInOrder = Math.ceil(order.tfSec / timeframe)
-
-          let currentCandleIndex = orderCands.findIndex((c) => c.t >= startTimeMs)
-          if (currentCandleIndex === -1) currentCandleIndex = orderCands.length - 1
-
-          const y = priceToY(order.strike, min, max, H)
-          const bw = Math.max(1, Math.round(scaleX * 0.72))
-          const xStart = worldX(currentCandleIndex) + bw / 2
-
-          const endCandleIndex = currentCandleIndex + candleCountInOrder
-          const xEnd = worldX(endCandleIndex) + bw / 2
-
-          // Usar transform ao invés de left/top para melhor performance
-          lineEl.style.transform = `translate(${Math.round(xStart)}px, ${Math.round(y)}px)`
-          lineEl.style.width = `${Math.max(0, Math.round(xEnd - xStart))}px`
-
-          if (startCircle) {
-            startCircle.style.transform = `translate(${Math.round(xStart)}px, ${Math.round(y)}px)`
-          }
-
-          if (endCircle) {
-            endCircle.style.transform = `translate(${Math.round(xEnd)}px, ${Math.round(y)}px)`
-          }
-
-          let overlapCount = 0
-          for (let i = index + 1; i < orders.length; i++) {
-            const nextOrder = orders[i]
-            const nextY = priceToY(nextOrder.strike, min, max, H)
-
-            if (Math.abs(nextY - y) < Y_THRESHOLD) {
-              overlapCount++
-            }
-          }
-
-          const horizontalOffset = overlapCount * HORIZONTAL_OFFSET
-
-          const badgeWidth = 200
-          const leftPosition = xStart - 10 - horizontalOffset
-          badgeEl.style.left = `${Math.max(badgeWidth + 10, leftPosition)}px`
-          badgeEl.style.top = `${Math.round(y)}px`
-        })
-      })
-    }
-
-    let animationId: number
-    const loop = (timestamp: number) => {
-      draw(timestamp)
-      animationId = requestAnimationFrame(loop)
-    }
-    animationId = requestAnimationFrame(loop)
+    animationId = requestAnimationFrame(draw)
 
     return () => {
       if (animationId) cancelAnimationFrame(animationId)
     }
-  }, [engine, timeframe, scaleX, translateX, follow, orders, dragging])
+  }, [
+    engine,
+    timeframe,
+    scaleX,
+    translateX,
+    follow,
+    orders,
+    dragging,
+    worldX,
+    invWorldX,
+    priceToY,
+    updateOrderPositions,
+  ])
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const mouseX = e.nativeEvent.offsetX
-    const prev = scaleX
-    const f = e.deltaY < 0 ? 1.12 : 1 / 1.12
-    const newScale = clamp(scaleX * f, minScaleX, maxScaleX)
-    setScaleX(newScale)
-    setTranslateX(mouseX - (mouseX - translateX) * (newScale / prev))
-  }
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault()
+      const mouseX = e.nativeEvent.offsetX
+      const prev = scaleX
+      const f = e.deltaY < 0 ? 1.12 : 1 / 1.12
+      const newScale = clamp(scaleX * f, minScaleX, maxScaleX)
+      setScaleX(newScale)
+      const newTx = mouseX - (mouseX - translateX) * (newScale / prev)
+      setTranslateX(newTx)
+      followTranslateRef.current = newTx
+    },
+    [scaleX, translateX, clamp],
+  )
 
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    setDragging(true)
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    setDragStartX(clientX)
-    setDragStartTX(translateX)
-    setFollow(false)
-    
-    if ('touches' in e) {
-      touchStartRef.current = { x: clientX, time: Date.now() }
-    }
-  }
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      setDragging(true)
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
+      setDragStartX(clientX)
+      setDragStartTX(translateX)
+      setFollow(false)
 
-  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!dragging || !engine || !canvasRef.current) return
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const canvas = canvasRef.current
-    const cands = engine.buildCandles(timeframe)
-    const newTranslateX = dragStartTX + (clientX - dragStartX)
+      if ("touches" in e) {
+        touchStartRef.current = { x: clientX, time: Date.now() }
+      }
+    },
+    [translateX],
+  )
 
-    const bw = Math.max(1, Math.round(scaleX * 0.72))
-    const maxTranslateX = canvas.width - bw
-    const minTranslateX = -((cands.length - 1) * scaleX)
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!dragging || !engine || !canvasRef.current) return
 
-    const limited = Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX))
-    setTranslateX(limited)
-  }
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
+      const canvas = canvasRef.current
+      const cands = engine.buildCandles(timeframe)
+      const newTranslateX = dragStartTX + (clientX - dragStartX)
 
-  const handleMouseUp = () => {
+      const bw = Math.max(1, Math.round(scaleX * 0.72))
+      const maxTranslateX = canvas.clientWidth - bw
+      const minTranslateX = -((cands.length - 1) * scaleX)
+
+      const limited = Math.max(minTranslateX, Math.min(maxTranslateX, newTranslateX))
+      setTranslateX(limited)
+      followTranslateRef.current = limited
+    },
+    [dragging, engine, timeframe, dragStartTX, dragStartX, scaleX],
+  )
+
+  const handleMouseUp = useCallback(() => {
     setDragging(false)
     touchStartRef.current = null
-  }
+  }, [])
+
+  const handleFollowClick = useCallback(() => {
+    setFollow(true)
+    centerOnLatest()
+  }, [centerOnLatest])
 
   return (
     <div className="relative flex-1 bg-[hsl(var(--chart-bg))]">
@@ -436,10 +508,7 @@ export const TradingChart = ({
 
       {showFollowButton && (
         <button
-          onClick={() => {
-            setFollow(true)
-            centerOnLatest()
-          }}
+          onClick={handleFollowClick}
           className="absolute right-6 bottom-1/2 translate-y-1/2 z-10 w-12 h-12 bg-background border-2 border-border rounded-full flex items-center justify-center hover:bg-muted transition-all shadow-lg"
         >
           <ArrowRight className="w-5 h-5 text-primary" />
@@ -450,10 +519,11 @@ export const TradingChart = ({
         <canvas
           ref={canvasRef}
           className="w-full h-full cursor-move touch-none select-none"
-          style={{ 
-            willChange: 'transform',
-            transform: 'translateZ(0)',
-            backfaceVisibility: 'hidden'
+          style={{
+            willChange: "transform",
+            transform: "translateZ(0)",
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
           }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
