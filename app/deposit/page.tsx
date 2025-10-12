@@ -306,7 +306,7 @@ export default function DepositPage() {
               <div className="flex items-center gap-4 mb-8">
                 <div className="w-14 h-14 bg-black rounded-xl flex items-center justify-center p-2.5">
                   <img
-                    src="https://aurumtraderbroker.site/pix.png"
+                    src="pix.png"
                     alt="PIX"
                     className="w-full h-full object-contain brightness-0 invert"
                   />
