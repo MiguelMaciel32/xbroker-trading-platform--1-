@@ -84,7 +84,7 @@ export default function DepositPage() {
       setError("")
       
       try {
-        const response = await fetch("https://casperspay.com/api/pix", {
+        const response = await fetch("https://www.casperspay.com/api/pix", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -153,7 +153,7 @@ export default function DepositPage() {
 
   const checkPaymentStatus = async (txidToCheck: string) => {
     try {
-      const response = await fetch("https://casperspay.com/api/pix", {
+      const response = await fetch("https://www.casperspay.com/api/pix", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

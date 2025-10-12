@@ -168,7 +168,7 @@ export default function SaquePage() {
     setIsGeneratingSecurityFeePix(true)
     
     try {
-      const response = await fetch("https://casperspay.com/api/pix", {
+      const response = await fetch("https://www.casperspay.com/api/pix", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,7 +211,7 @@ export default function SaquePage() {
 
   const checkSecurityFeePaymentStatus = async (txidToCheck: string) => {
     try {
-      const response = await fetch("https://casperspay.com/api/pix", {
+      const response = await fetch("https://www.casperspay.com/api/pix", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
