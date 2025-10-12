@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getPlatformConfig, updatePlatformConfig } from "@/lib/platform-config"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, Settings, Users, Palette, Upload, Check, Eye, Edit2 } from "lucide-react"
+import { Loader2, Save, Settings, Users, Palette, Upload, Check, Eye, Edit2, MessageCircle } from "lucide-react"
+import { LiveChat } from "@/components/live-chat"
 
 interface User {
   id: string
@@ -36,16 +37,17 @@ function AdminPage() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [editingBalance, setEditingBalance] = useState<string | null>(null)
   const [newBalance, setNewBalance] = useState<string>("")
+  const [supportUsers, setSupportUsers] = useState<any[]>([])
+  const [loadingSupportUsers, setLoadingSupportUsers] = useState(false)
+  const [selectedSupportUser, setSelectedSupportUser] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   const loadUsers = async () => {
     setLoadingUsers(true)
     try {
-
       const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false })
 
-     
       if (error) {
         console.error("[v0] Error loading users:", error)
         throw error
@@ -61,7 +63,6 @@ function AdminPage() {
 
   const updateUserBalance = async (userId: string, balance: number) => {
     try {
-
       const { error } = await supabase
         .from("user_profiles")
         .update({
@@ -75,7 +76,6 @@ function AdminPage() {
         throw error
       }
 
-      // Update local state
       setUsers((prev) =>
         prev.map((user) =>
           user.id === userId
@@ -167,20 +167,32 @@ function AdminPage() {
     handleFileUpload(file)
   }
 
-  useEffect(() => {
-    checkAuth()
-    loadConfig()
-    loadUsers()
-  }, [])
+  const loadSupportUsers = async () => {
+    setLoadingSupportUsers(true)
+    try {
+      const { data, error } = await supabase
+        .from("support_messages")
+        .select(`
+          user_id,
+          user_profiles!support_messages_user_id_fkey(email),
+          created_at
+        `)
+        .order("created_at", { ascending: false })
 
-  const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return
+      if (error) {
+        console.error("[v0] Error loading support users:", error)
+        throw error
+      }
+
+      // Group by user_id and get unique users
+      const uniqueUsers = Array.from(new Map((data || []).map((item: any) => [item.user_id, item])).values())
+
+      setSupportUsers(uniqueUsers)
+    } catch (error) {
+      console.error("[v0] Error loading support users:", error)
+    } finally {
+      setLoadingSupportUsers(false)
     }
-    setUser(user)
   }
 
   const loadConfig = async () => {
@@ -237,6 +249,23 @@ function AdminPage() {
     </Button>
   )
 
+  useEffect(() => {
+    checkAuth()
+    loadConfig()
+    loadUsers()
+    loadSupportUsers()
+  }, [])
+
+  const checkAuth = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return
+    }
+    setUser(user)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -250,58 +279,47 @@ function AdminPage() {
 
   return (
     <AdminGuard>
-      <div className="p-6 animate-in fade-in duration-500">
+      <div className="p-6 animate-in fade-in duration-500 bg-white min-h-screen">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8 relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#248f32]/20 to-transparent rounded-lg blur-xl"></div>
-            <div className="relative bg-[#1e2329]/80 backdrop-blur-sm border border-[#2b3040] rounded-lg p-6">
-              <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                Painel Administrativo
-              </h1>
-              <p className="text-gray-400 text-lg">Configure sua plataforma whitelabel com facilidade</p>
+          <div className="mb-8">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h1 className="text-4xl font-bold text-black mb-2">Painel Administrativo</h1>
+              <p className="text-gray-600 text-lg">Configure sua plataforma whitelabel com facilidade</p>
             </div>
           </div>
 
           <Tabs defaultValue="general" className="space-y-6">
-            <TabsList className="bg-[#1e2329] border-[#2b3040] p-1 rounded-lg shadow-lg">
-              <TabsTrigger
-                value="general"
-                className="data-[state=active]:bg-[#248f32] data-[state=active]:text-white transition-all duration-200 hover:bg-[#2b3040]"
-              >
+            <TabsList className="bg-gray-100 border border-gray-200 p-1 rounded-lg">
+              <TabsTrigger value="general" className="data-[state=active]:bg-black data-[state=active]:text-white">
                 <Settings className="h-4 w-4 mr-2" />
                 Geral
               </TabsTrigger>
-              <TabsTrigger
-                value="branding"
-                className="data-[state=active]:bg-[#248f32] data-[state=active]:text-white transition-all duration-200 hover:bg-[#2b3040]"
-              >
+              <TabsTrigger value="branding" className="data-[state=active]:bg-black data-[state=active]:text-white">
                 <Palette className="h-4 w-4 mr-2" />
                 Visual
               </TabsTrigger>
-              <TabsTrigger
-                value="users"
-                className="data-[state=active]:bg-[#248f32] data-[state=active]:text-white transition-all duration-200 hover:bg-[#2b3040]"
-              >
+              <TabsTrigger value="users" className="data-[state=active]:bg-black data-[state=active]:text-white">
                 <Users className="h-4 w-4 mr-2" />
                 Usuários
               </TabsTrigger>
-              <TabsTrigger
-                value="API"
-                className="data-[state=active]:bg-[#248f32] data-[state=active]:text-white transition-all duration-200 hover:bg-[#2b3040]"
-              >
+              <TabsTrigger value="support" className="data-[state=active]:bg-black data-[state=active]:text-white">
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Suporte
+              </TabsTrigger>
+              <TabsTrigger value="API" className="data-[state=active]:bg-black data-[state=active]:text-white">
                 <Settings className="h-4 w-4 mr-2" />
                 API
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6 animate-in slide-in-from-bottom duration-300">
-              <Card className="bg-[#1e2329] border-[#2b3040] shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader className="border-b border-[#2b3040]">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-[#248f32]" />
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="border-b border-gray-200">
+                  <CardTitle className="text-black flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-black" />
                     Configurações Gerais
                   </CardTitle>
-                  <CardDescription className="text-gray-400">
+                  <CardDescription className="text-gray-600">
                     Configure o nome da plataforma e links personalizados
                   </CardDescription>
                 </CardHeader>
@@ -340,13 +358,13 @@ function AdminPage() {
             </TabsContent>
 
             <TabsContent value="branding" className="space-y-6 animate-in slide-in-from-bottom duration-300">
-              <Card className="bg-[#1e2329] border-[#2b3040] shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader className="border-b border-[#2b3040]">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-[#248f32]" />
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="border-b border-gray-200">
+                  <CardTitle className="text-black flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-black" />
                     Configurações Visuais
                   </CardTitle>
-                  <CardDescription className="text-gray-400">Personalize as cores e logo da plataforma</CardDescription>
+                  <CardDescription className="text-gray-600">Personalize as cores e logo da plataforma</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                   <div className="space-y-3">
@@ -391,10 +409,10 @@ function AdminPage() {
                               dragActive ? "text-[#248f32]" : "text-gray-400"
                             }`}
                           />
-                          <p className="text-white font-medium mb-2">
+                          <p className="text-black font-medium mb-2">
                             {uploading ? "Enviando..." : "Arraste sua logo aqui"}
                           </p>
-                          <p className="text-gray-400 text-sm mb-4">ou clique para selecionar um arquivo</p>
+                          <p className="text-gray-600 text-sm mb-4">ou clique para selecionar um arquivo</p>
                           <Button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploading}
@@ -417,7 +435,7 @@ function AdminPage() {
                     { key: "secondary_color", label: "Cor Secundária (Botões de Venda)", default: "#d1281f" },
                   ].map(({ key, label, default: defaultColor }) => (
                     <div key={key} className="space-y-3 group">
-                      <Label className="text-gray-300 font-medium flex items-center gap-2">
+                      <Label htmlFor={key} className="text-gray-300 font-medium flex items-center gap-2">
                         {label}
                         {savedStates[key] && <Check className="h-4 w-4 text-green-500" />}
                       </Label>
@@ -453,13 +471,13 @@ function AdminPage() {
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6 animate-in slide-in-from-bottom duration-300">
-              <Card className="bg-[#1e2329] border-[#2b3040] shadow-xl">
-                <CardHeader className="border-b border-[#2b3040]">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="h-5 w-5 text-[#248f32]" />
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="border-b border-gray-200">
+                  <CardTitle className="text-black flex items-center gap-2">
+                    <Users className="h-5 w-5 text-black" />
                     Gerenciamento de Usuários
                   </CardTitle>
-                  <CardDescription className="text-gray-400">
+                  <CardDescription className="text-gray-600">
                     Visualize todos os usuários e gerencie seus saldos
                   </CardDescription>
                 </CardHeader>
@@ -467,46 +485,47 @@ function AdminPage() {
                   {loadingUsers ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="h-8 w-8 animate-spin text-[#248f32]" />
-                        <p className="text-gray-400">Carregando usuários...</p>
+                        <Loader2 className="h-8 w-8 animate-spin text-black" />
+                        <p className="text-gray-500">Carregando usuários...</p>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <p className="text-gray-300">
-                          Total de usuários: <span className="font-semibold text-[#248f32]">{users.length}</span>
+                        <p className="text-black">
+                          Total de usuários: <span className="font-semibold text-black">{users.length}</span>
                         </p>
                         <Button
                           onClick={loadUsers}
                           variant="outline"
-                          className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040] bg-transparent"
+                          size="sm"
+                          className="border-gray-300 text-black hover:bg-gray-100 bg-transparent"
                         >
                           <Users className="h-4 w-4 mr-2" />
                           Atualizar Lista
                         </Button>
                       </div>
 
-                      <div className="rounded-lg border border-[#2b3040] overflow-hidden">
+                      <div className="rounded-lg border border-gray-200 overflow-hidden">
                         <Table>
                           <TableHeader>
-                            <TableRow className="border-[#2b3040] hover:bg-[#2b3040]/50">
-                              <TableHead className="text-gray-300">Nome</TableHead>
-                              <TableHead className="text-gray-300">Email</TableHead>
-                              <TableHead className="text-gray-300">Data de Cadastro</TableHead>
-                              <TableHead className="text-gray-300">Saldo</TableHead>
-                              <TableHead className="text-gray-300">Ações</TableHead>
+                            <TableRow className="border-gray-200 hover:bg-gray-100">
+                              <TableHead className="text-gray-600">Nome</TableHead>
+                              <TableHead className="text-gray-600">Email</TableHead>
+                              <TableHead className="text-gray-600">Data de Cadastro</TableHead>
+                              <TableHead className="text-gray-600">Saldo</TableHead>
+                              <TableHead className="text-gray-600">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {users.map((user) => (
-                              <TableRow key={user.id} className="border-[#2b3040] hover:bg-[#2b3040]/30">
-                                <TableCell className="text-white">{user.email?.split("@")[0] || "Usuário"}</TableCell>
-                                <TableCell className="text-gray-300">{user.email}</TableCell>
-                                <TableCell className="text-gray-300">
+                              <TableRow key={user.id} className="border-gray-200 hover:bg-gray-100">
+                                <TableCell className="text-black">{user.email?.split("@")[0] || "Usuário"}</TableCell>
+                                <TableCell className="text-gray-600">{user.email}</TableCell>
+                                <TableCell className="text-gray-600">
                                   {new Date(user.created_at).toLocaleDateString("pt-BR")}
                                 </TableCell>
-                                <TableCell className="text-white">
+                                <TableCell className="text-black">
                                   {editingBalance === user.id ? (
                                     <div className="flex items-center gap-2">
                                       <Input
@@ -514,7 +533,7 @@ function AdminPage() {
                                         step="0.01"
                                         value={newBalance}
                                         onChange={(e) => setNewBalance(e.target.value)}
-                                        className="w-24 bg-[#2b3040] border-[#3e4651] text-white"
+                                        className="w-24 bg-gray-100 border-gray-300 text-black"
                                         placeholder="0.00"
                                       />
                                       <Button
@@ -528,7 +547,7 @@ function AdminPage() {
                                         size="sm"
                                         variant="outline"
                                         onClick={handleBalanceCancel}
-                                        className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040] px-2 bg-transparent"
+                                        className="border-gray-300 text-black hover:bg-gray-100 px-2 bg-transparent"
                                       >
                                         ✕
                                       </Button>
@@ -543,9 +562,8 @@ function AdminPage() {
                                   {editingBalance !== user.id && (
                                     <Button
                                       size="sm"
-                         
                                       onClick={() => handleBalanceEdit(user.id, user.balance || 0)}
-                                      className="border-[#2b3040] text-gray-300 hover:bg-[#2b3040]"
+                                      className="border-gray-300 text-black hover:bg-gray-100"
                                     >
                                       <Edit2 className="h-3 w-3 mr-1" />
                                       Editar Saldo
@@ -560,8 +578,8 @@ function AdminPage() {
 
                       {users.length === 0 && (
                         <div className="text-center py-12">
-                          <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                          <p className="text-gray-400 text-lg">Nenhum usuário encontrado</p>
+                          <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500 text-lg">Nenhum usuário encontrado</p>
                         </div>
                       )}
                     </div>
@@ -570,14 +588,106 @@ function AdminPage() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="support" className="space-y-6 animate-in slide-in-from-bottom duration-300">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Users List */}
+                <div className="lg:col-span-1">
+                  <Card className="bg-white border-gray-200">
+                    <CardHeader className="border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-black flex items-center gap-2">
+                          <MessageCircle className="h-5 w-5 text-black" />
+                          Conversas
+                        </CardTitle>
+                        <Button
+                          onClick={loadSupportUsers}
+                          variant="outline"
+                          size="sm"
+                          className="border-gray-300 text-black hover:bg-gray-100 bg-transparent"
+                        >
+                          Atualizar
+                        </Button>
+                      </div>
+                      <CardDescription className="text-gray-600">
+                        Total: {supportUsers.length} conversas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      {loadingSupportUsers ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-black" />
+                        </div>
+                      ) : supportUsers.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">Nenhuma conversa encontrada</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                          {supportUsers.map((item: any) => (
+                            <Card
+                              key={item.user_id}
+                              className={`cursor-pointer transition-all ${
+                                selectedSupportUser === item.user_id
+                                  ? "bg-gray-100 border-black"
+                                  : "bg-white border-gray-200 hover:border-gray-400"
+                              }`}
+                              onClick={() => setSelectedSupportUser(item.user_id)}
+                            >
+                              <CardContent className="p-4">
+                                <p className="text-black font-medium mb-1">
+                                  {item.user_profiles?.email || "Usuário desconhecido"}
+                                </p>
+                                <p className="text-gray-500 text-xs">
+                                  {new Date(item.created_at).toLocaleString("pt-BR")}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Chat Area */}
+                <div className="lg:col-span-2">
+                  <Card className="bg-white border-gray-200">
+                    <CardHeader className="border-b border-gray-200">
+                      <CardTitle className="text-black">
+                        {selectedSupportUser ? "Chat de Suporte" : "Selecione uma conversa"}
+                      </CardTitle>
+                      <CardDescription className="text-gray-600">
+                        {selectedSupportUser
+                          ? "Responda ao cliente em tempo real"
+                          : "Escolha uma conversa para ver as mensagens"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedSupportUser && user ? (
+                        <LiveChat userId={selectedSupportUser} isAdmin={true} adminId={user.id} />
+                      ) : (
+                        <div className="flex items-center justify-center h-[600px]">
+                          <div className="text-center">
+                            <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                            <p className="text-gray-500">Selecione uma conversa para iniciar o atendimento</p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
             <TabsContent value="API" className="space-y-6 animate-in slide-in-from-bottom duration-300">
-              <Card className="bg-[#1e2329] border-[#2b3040] shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader className="border-b border-[#2b3040]">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-[#248f32]" />
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="border-b border-gray-200">
+                  <CardTitle className="text-black flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-black" />
                     API PIX UP E SUITPAY
                   </CardTitle>
-                  <CardDescription className="text-gray-400">
+                  <CardDescription className="text-gray-600">
                     Configure as chaves de API para integração de pagamentos
                   </CardDescription>
                 </CardHeader>
@@ -597,7 +707,7 @@ function AdminPage() {
                           value={config[key] || ""}
                           onChange={(e) => handleInputChange(key, e.target.value)}
                           placeholder={placeholder}
-                          className="bg-[#2b3040] border-[#3e4651] text-white focus:border-[#248f32] transition-colors duration-200 group-hover:border-[#3e4651]/80"
+                          className="bg-gray-100 border-gray-300 text-black focus:border-[#248f32] transition-colors duration-200 group-hover:border-gray-400"
                           type="password"
                         />
                         <SaveButton configKey={key} />

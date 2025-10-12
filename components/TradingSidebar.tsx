@@ -105,17 +105,7 @@ export const TradingSidebar = ({
           </p>
         </div>
 
-        <div>
-          <h3 className="text-lg font-bold mb-3">Utilitários</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" onClick={onNewSeed}>
-              Novo seed
-            </Button>
-            <Button variant="outline" size="sm" onClick={onReset}>
-              Resetar
-            </Button>
-          </div>
-        </div>
+       
 
         <div>
           <h3 className="text-lg font-bold mb-3">Histórico</h3>

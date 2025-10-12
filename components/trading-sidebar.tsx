@@ -59,22 +59,18 @@ export default function TradingSidebar() {
           <span className={`text-[9px] font-bold transition-colors ${getIconColor("/saque")}`}>SAQUE</span>
         </Link>
 
+         <Link
+          href="/support"
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/saque")}`}
+          title="Saque - Retire seus fundos da plataforma"
+        >
+          <HelpCircle className={`h-6 w-6 transition-colors ${getIconColor("/support")}`} />
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/support")}`}>Suporte</span>
+        </Link>
+
         <div className="flex-1" />
 
-        {config.support_link && (
-          <a
-            href={config.support_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center space-y-1 hover:bg-gray-100 p-3 rounded-lg transition-all group"
-            title="Suporte - Obtenha ajuda e tire suas dúvidas"
-          >
-            <HelpCircle className="h-6 w-6 text-gray-600 group-hover:text-black transition-colors" />
-            <span className="text-[9px] font-bold text-gray-600 group-hover:text-black transition-colors">
-              SUPORTE
-            </span>
-          </a>
-        )}
+       
 
         <Link
           href="/account"
