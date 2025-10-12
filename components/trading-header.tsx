@@ -165,7 +165,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
           </DropdownMenu>
 
           <Link href="/deposit">
-            <Button className="bg-green-500 text-white hover:bg-green-600 font-bold px-3 sm:px-5 py-2 text-xs sm:text-sm transition-all shadow-sm">
+            <Button className="bg-black text-green-500 hover:bg-gray-900 font-bold px-3 sm:px-5 py-2 text-xs sm:text-sm transition-all shadow-sm">
               <Plus className="w-4 h-4 mr-1" />
               <span>Depósito</span>
             </Button>
