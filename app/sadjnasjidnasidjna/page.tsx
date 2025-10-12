@@ -332,11 +332,8 @@ function AdminPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-[#248f32]" />
-          <p className="text-gray-400 animate-pulse">Carregando configurações...</p>
-        </div>
+      <div className="flex items-center bg-white justify-center h-96">
+       
       </div>
     )
   }

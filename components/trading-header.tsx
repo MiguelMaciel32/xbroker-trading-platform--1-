@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Bell, Rocket, Minus, ChevronDown } from "lucide-react"
+import { Plus, Bell, ChevronDown } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
 import Link from "next/link"
 import { getUserBalance, updateUserBalance, getUserName } from "@/lib/actions/balance"
@@ -123,7 +123,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
       <div className="flex items-center justify-between p-2 gap-4">
         {/* Logo e Nome da Plataforma */}
         <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-     <img src="/logo/logo.png" className="w-20 h-10 object-contain" />
+          <img src="/logo/logo.png" className="w-20 h-10 object-contain" />
           <span className="hidden xs:block text-black font-bold text-sm sm:text-base whitespace-nowrap">
             {config.platform_name || "TradePro"}
           </span>
@@ -146,9 +146,7 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
                   <div className="text-gray-500 text-xs sm:text-sm uppercase font-medium">
                     {accountType === "real" ? "Conta Real" : "Conta Demo"}
                   </div>
-                  <div className="text-black font-bold text-sm sm:text-base">
-                    R$ {formatBalance(displayBalance)}
-                  </div>
+                  <div className="text-black font-bold text-sm sm:text-base">R$ {formatBalance(displayBalance)}</div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-500" />
               </button>
@@ -167,13 +165,11 @@ export default function TradingHeader({ onBalanceUpdate }: TradingHeaderProps) {
           </DropdownMenu>
 
           <Link href="/deposit">
-            <Button className="bg-black text-white hover:bg-gray-800 font-bold px-3 sm:px-5 py-2 text-xs sm:text-sm transition-all shadow-sm">
+            <Button className="bg-green-500 text-white hover:bg-green-600 font-bold px-3 sm:px-5 py-2 text-xs sm:text-sm transition-all shadow-sm">
               <Plus className="w-4 h-4 mr-1" />
               <span>Depósito</span>
             </Button>
           </Link>
-
-         
         </div>
       </div>
     </div>

@@ -151,7 +151,7 @@ export function LiveChat({ userId, isAdmin = false, adminId }: LiveChatProps) {
                         <div className="flex-shrink-0 mt-1">
                           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-200">
                             <Image
-                              src="/images/support-avatar.jpg"
+                              src="/images/support-avatar.png"
                               alt="Suporte"
                               width={36}
                               height={36}

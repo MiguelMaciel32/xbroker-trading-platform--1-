@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, CreditCard, ArrowUpDown, User, Users, HelpCircle, TrendingUp, PhoneCall } from "lucide-react"
+import { BarChart3, CreditCard, ArrowUpDown, User, HelpCircle } from "lucide-react"
 import { getPlatformConfig } from "@/lib/platform-config"
 
 export default function TradingSidebar() {
@@ -59,18 +59,16 @@ export default function TradingSidebar() {
           <span className={`text-[9px] font-bold transition-colors ${getIconColor("/saque")}`}>SAQUE</span>
         </Link>
 
-         <Link
+        <Link
           href="/support"
-          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/saque")}`}
-          title="Saque - Retire seus fundos da plataforma"
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/support")}`}
+          title="Suporte - Entre em contato conosco"
         >
           <HelpCircle className={`h-6 w-6 transition-colors ${getIconColor("/support")}`} />
-          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/support")}`}>Suporte</span>
+          <span className={`text-[9px] font-bold transition-colors ${getIconColor("/support")}`}>SUPORTE</span>
         </Link>
 
         <div className="flex-1" />
-
-       
 
         <Link
           href="/account"
@@ -85,55 +83,40 @@ export default function TradingSidebar() {
       {/* Menu Mobile (fixo no rodapé) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
         <div className="flex items-center justify-around px-2 py-2">
-          {/* Gráficos */}
           <Link
             href="/trading"
-            className={`p-2 rounded-lg transition-all ${
-              isActive("/trading") ? "bg-black" : "hover:bg-gray-100"
-            }`}
+            className={`p-2 rounded-lg transition-all ${isActive("/trading") ? "bg-black" : "hover:bg-gray-100"}`}
           >
             <BarChart3 className={`w-5 h-5 ${isActive("/trading") ? "text-white" : "text-gray-600"}`} />
           </Link>
 
-          {/* Depósito */}
           <Link
             href="/deposit"
-            className={`p-2 rounded-lg transition-all ${
-              isActive("/deposit") ? "bg-black" : "hover:bg-gray-100"
-            }`}
+            className={`p-2 rounded-lg transition-all ${isActive("/deposit") ? "bg-black" : "hover:bg-gray-100"}`}
           >
             <CreditCard className={`w-5 h-5 ${isActive("/deposit") ? "text-white" : "text-gray-600"}`} />
           </Link>
 
-          {/* Perfil */}
-          <Link
-            href="/account"
-            className={`p-2 rounded-lg transition-all ${
-              isActive("/account") ? "bg-black" : "hover:bg-gray-100"
-            }`}
-          >
-            <User className={`w-5 h-5 ${isActive("/account") ? "text-white" : "text-gray-600"}`} />
-          </Link>
-
-          {/* Saque */}
           <Link
             href="/saque"
-            className={`p-2 rounded-lg transition-all ${
-              isActive("/saque") ? "bg-black" : "hover:bg-gray-100"
-            }`}
+            className={`p-2 rounded-lg transition-all ${isActive("/saque") ? "bg-black" : "hover:bg-gray-100"}`}
           >
             <ArrowUpDown className={`w-5 h-5 ${isActive("/saque") ? "text-white" : "text-gray-600"}`} />
           </Link>
 
-          {/* Suporte */}
-           <Link
-          href="/support"
-          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/saque")}`}
-          title="Saque - Retire seus fundos da plataforma"
-        >
-          <HelpCircle className={`w-5 h-5 ${isActive("/saque") ? "text-white" : "text-gray-600"}`} />
-        
-        </Link>
+          <Link
+            href="/support"
+            className={`p-2 rounded-lg transition-all ${isActive("/support") ? "bg-black" : "hover:bg-gray-100"}`}
+          >
+            <HelpCircle className={`w-5 h-5 ${isActive("/support") ? "text-white" : "text-gray-600"}`} />
+          </Link>
+
+          <Link
+            href="/account"
+            className={`p-2 rounded-lg transition-all ${isActive("/account") ? "bg-black" : "hover:bg-gray-100"}`}
+          >
+            <User className={`w-5 h-5 ${isActive("/account") ? "text-white" : "text-gray-600"}`} />
+          </Link>
         </div>
       </div>
     </>
