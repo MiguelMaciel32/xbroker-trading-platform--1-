@@ -592,7 +592,7 @@ function AdminPage() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Users List */}
                 <div className="lg:col-span-1">
-                  <Card className="bg-white border-gray-200">
+                  <Card className="bg-white border-gray-200 h-fit">
                     <CardHeader className="border-b border-gray-200">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-black flex items-center gap-2">
@@ -623,7 +623,7 @@ function AdminPage() {
                           <p className="text-gray-500">Nenhuma conversa encontrada</p>
                         </div>
                       ) : (
-                        <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto">
                           {supportUsers.map((item: any) => (
                             <Card
                               key={item.user_id}
@@ -652,7 +652,7 @@ function AdminPage() {
 
                 {/* Chat Area */}
                 <div className="lg:col-span-2">
-                  <Card className="bg-white border-gray-200">
+                  <Card className="bg-white border-gray-200 h-fit">
                     <CardHeader className="border-b border-gray-200">
                       <CardTitle className="text-black">
                         {selectedSupportUser ? "Chat de Suporte" : "Selecione uma conversa"}
@@ -663,11 +663,13 @@ function AdminPage() {
                           : "Escolha uma conversa para ver as mensagens"}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-0">
                       {selectedSupportUser && user ? (
-                        <LiveChat userId={selectedSupportUser} isAdmin={true} adminId={user.id} />
+                        <div className="p-4">
+                          <LiveChat userId={selectedSupportUser} isAdmin={true} adminId={user.id} />
+                        </div>
                       ) : (
-                        <div className="flex items-center justify-center h-[600px]">
+                        <div className="flex items-center justify-center min-h-[500px]">
                           <div className="text-center">
                             <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                             <p className="text-gray-500">Selecione uma conversa para iniciar o atendimento</p>

@@ -126,14 +126,14 @@ export default function TradingSidebar() {
           </Link>
 
           {/* Suporte */}
-          <Link
-            href={config.support_link || "/suporte"}
-            className={`p-2 rounded-lg transition-all ${
-              isActive("/suporte") ? "bg-black" : "hover:bg-gray-100"
-            }`}
-          >
-            <PhoneCall className={`w-5 h-5 ${isActive("/suporte") ? "text-white" : "text-gray-600"}`} />
-          </Link>
+           <Link
+          href="/support"
+          className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all ${getActiveStyles("/saque")}`}
+          title="Saque - Retire seus fundos da plataforma"
+        >
+          <HelpCircle className={`w-5 h-5 ${isActive("/saque") ? "text-white" : "text-gray-600"}`} />
+        
+        </Link>
         </div>
       </div>
     </>
