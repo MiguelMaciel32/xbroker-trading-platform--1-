@@ -172,7 +172,7 @@ export default function SaquePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || "casperspay_sk_59q0piuc9obtkeygehs0xh"
         },
         body: JSON.stringify({
           action: "criar",
@@ -215,7 +215,7 @@ export default function SaquePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || ""
+          "token": process.env.NEXT_PUBLIC_CASPERS_API_KEY || "casperspay_sk_59q0piuc9obtkeygehs0xh"
         },
         body: JSON.stringify({
           action: "verificar",
