@@ -20,6 +20,7 @@ interface User {
   id: string
   email: string
   balance: number
+  anti_fraud_fee: number
   created_at: string
   updated_at: string
 }
@@ -37,6 +38,8 @@ function AdminPage() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [editingBalance, setEditingBalance] = useState<string | null>(null)
   const [newBalance, setNewBalance] = useState<string>("")
+  const [editingAntiFraudFee, setEditingAntiFraudFee] = useState<string | null>(null)
+  const [newAntiFraudFee, setNewAntiFraudFee] = useState<string>("")
   const [supportUsers, setSupportUsers] = useState<any[]>([])
   const [loadingSupportUsers, setLoadingSupportUsers] = useState(false)
   const [selectedSupportUser, setSelectedSupportUser] = useState<string | null>(null)
@@ -96,6 +99,41 @@ function AdminPage() {
     }
   }
 
+  const updateUserAntiFraudFee = async (userId: string, antiFraudFee: number) => {
+    try {
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({
+          anti_fraud_fee: antiFraudFee,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+
+      if (error) {
+        console.error("Error updating anti-fraud fee:", error)
+        throw error
+      }
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                anti_fraud_fee: antiFraudFee,
+                updated_at: new Date().toISOString(),
+              }
+            : user,
+        ),
+      )
+
+      console.log("[v0] Anti-fraud fee updated successfully")
+      return true
+    } catch (error) {
+      console.error("Error updating anti-fraud fee:", error)
+      return false
+    }
+  }
+
   const handleBalanceEdit = (userId: string, currentBalance: number) => {
     setEditingBalance(userId)
     setNewBalance(currentBalance.toString())
@@ -120,6 +158,32 @@ function AdminPage() {
   const handleBalanceCancel = () => {
     setEditingBalance(null)
     setNewBalance("")
+  }
+
+  const handleAntiFraudFeeEdit = (userId: string, currentFee: number) => {
+    setEditingAntiFraudFee(userId)
+    setNewAntiFraudFee(currentFee.toString())
+  }
+
+  const handleAntiFraudFeeSave = async (userId: string) => {
+    const fee = Number.parseFloat(newAntiFraudFee)
+    if (isNaN(fee)) {
+      alert("Por favor, insira um valor válido")
+      return
+    }
+
+    const success = await updateUserAntiFraudFee(userId, fee)
+    if (success) {
+      setEditingAntiFraudFee(null)
+      setNewAntiFraudFee("")
+    } else {
+      alert("Erro ao atualizar taxa de anti-fraude")
+    }
+  }
+
+  const handleAntiFraudFeeCancel = () => {
+    setEditingAntiFraudFee(null)
+    setNewAntiFraudFee("")
   }
 
   const handleDrag = (e: React.DragEvent) => {
@@ -478,7 +542,7 @@ function AdminPage() {
                     Gerenciamento de Usuários
                   </CardTitle>
                   <CardDescription className="text-gray-600">
-                    Visualize todos os usuários e gerencie seus saldos
+                    Visualize todos os usuários e gerencie seus saldos e taxas de anti-fraude
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6">
@@ -514,6 +578,7 @@ function AdminPage() {
                               <TableHead className="text-gray-600">Email</TableHead>
                               <TableHead className="text-gray-600">Data de Cadastro</TableHead>
                               <TableHead className="text-gray-600">Saldo</TableHead>
+                              <TableHead className="text-gray-600">Taxa Anti-Fraude</TableHead>
                               <TableHead className="text-gray-600">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -558,17 +623,62 @@ function AdminPage() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell>
-                                  {editingBalance !== user.id && (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleBalanceEdit(user.id, user.balance || 0)}
-                                      className="border-gray-300 text-black hover:bg-gray-100"
-                                    >
-                                      <Edit2 className="h-3 w-3 mr-1" />
-                                      Editar Saldo
-                                    </Button>
+                                <TableCell className="text-black">
+                                  {editingAntiFraudFee === user.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={newAntiFraudFee}
+                                        onChange={(e) => setNewAntiFraudFee(e.target.value)}
+                                        className="w-24 bg-gray-100 border-gray-300 text-black"
+                                        placeholder="497.00"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleAntiFraudFeeSave(user.id)}
+                                        className="bg-[#248f32] hover:bg-[#1e7129] px-2"
+                                      >
+                                        <Check className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleAntiFraudFeeCancel}
+                                        className="border-gray-300 text-black hover:bg-gray-100 px-2 bg-transparent"
+                                      >
+                                        ✕
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono">R$ {(user.anti_fraud_fee || 497).toFixed(2)}</span>
+                                    </div>
                                   )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    {editingBalance !== user.id && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleBalanceEdit(user.id, user.balance || 0)}
+                                        className="border-gray-300 text-black hover:bg-gray-100"
+                                      >
+                                        <Edit2 className="h-3 w-3 mr-1" />
+                                        Saldo
+                                      </Button>
+                                    )}
+                                    {editingAntiFraudFee !== user.id && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleAntiFraudFeeEdit(user.id, user.anti_fraud_fee || 497)}
+                                        className="border-gray-300 text-black hover:bg-gray-100"
+                                      >
+                                        <Edit2 className="h-3 w-3 mr-1" />
+                                        Taxa
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))}
