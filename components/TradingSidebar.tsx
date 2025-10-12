@@ -16,7 +16,7 @@ interface TradingSidebarProps {
 }
 
 const TIMEFRAMES = [
-  { value: 5, label: "5s" },
+  { value: 301, label: "5s" },
   { value: 10, label: "10s" },
   { value: 15, label: "15s" },
   { value: 30, label: "30s" },

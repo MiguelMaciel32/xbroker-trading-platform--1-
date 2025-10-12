@@ -35,6 +35,14 @@ export interface Order {
   resolved?: boolean
 }
 
+const easeOutCubic = (t: number): number => {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+const easeOutQuad = (t: number): number => {
+  return 1 - (1 - t) * (1 - t)
+}
+
 export const TradingChart = ({
   engine,
   timeframe,
@@ -67,6 +75,10 @@ export const TradingChart = ({
   const lastTextDrawRef = useRef(0)
   const cachedMinMaxRef = useRef<{ min: number; max: number; timestamp: number }>({ min: 0, max: 0, timestamp: 0 })
   const followTranslateRef = useRef(translateX)
+
+  const lastCandleCloseRef = useRef<number>(0)
+  const candleAnimationProgressRef = useRef<number>(1)
+  const priceChangeFlashRef = useRef<{ intensity: number; isBull: boolean } | null>(null)
 
   const minScaleX = 4
   const maxScaleX = 80
@@ -216,7 +228,7 @@ export const TradingChart = ({
     const draw = (timestamp: number) => {
       const isMobile = isMobileRef.current
 
-      const targetFrameTime = isMobile ? 33 : 16
+      const targetFrameTime = 16.67 // ~60fps
       if (timestamp - lastDrawTimeRef.current < targetFrameTime) {
         animationId = requestAnimationFrame(draw)
         return
@@ -236,10 +248,9 @@ export const TradingChart = ({
         const L = cands.length - 1
         const targetTx = W / 2 - L * scaleX - bw / 2
 
-        // Smooth interpolation instead of direct set
         const diff = targetTx - followTranslateRef.current
         if (Math.abs(diff) > 0.1) {
-          followTranslateRef.current += diff * 0.25 // Faster interpolation for more responsive feel
+          followTranslateRef.current += diff * 0.2
           setTranslateX(followTranslateRef.current)
         }
       }
@@ -312,14 +323,9 @@ export const TradingChart = ({
         }
       }
 
-      const rtIndex = cands.length - 1
       const bw = Math.max(1, Math.round(scaleX * 0.72))
-      const xRT = Math.round(worldX(rtIndex) + bw / 2) + 0.5
-      const lastCandle = cands[rtIndex]
 
       ctx.save()
-      ctx.strokeStyle = bullColor
-      ctx.fillStyle = bullColor
 
       for (let i = Math.max(0, firstIdx); i < Math.min(cands.length, lastIdx); i++) {
         const c = cands[i]
@@ -331,10 +337,8 @@ export const TradingChart = ({
         const bull = c.c >= c.o
         const color = bull ? bullColor : bearColor
 
-        if ((bull && ctx.strokeStyle !== bullColor) || (!bull && ctx.strokeStyle !== bearColor)) {
-          ctx.strokeStyle = color
-          ctx.fillStyle = color
-        }
+        ctx.strokeStyle = color
+        ctx.fillStyle = color
 
         // Wick
         ctx.beginPath()
@@ -347,9 +351,15 @@ export const TradingChart = ({
         const h = Math.max(1, Math.abs(yO - yC))
         ctx.fillRect(x, top, bw, h)
       }
+
       ctx.restore()
 
       if (!dragging) {
+        const rtIndex = cands.length - 1
+        const lastCandle = cands[rtIndex]
+        const xRT = Math.round(worldX(rtIndex) + bw / 2) + 0.5
+        const yPriceLineExact = priceToY(lastCandle.c, min, max, H)
+
         ctx.strokeStyle = lineColor + "80"
         ctx.lineWidth = 1
         ctx.setLineDash([4, 4])
@@ -358,8 +368,6 @@ export const TradingChart = ({
         ctx.lineTo(xRT, H)
         ctx.stroke()
         ctx.setLineDash([])
-
-        const yPriceLineExact = priceToY(lastCandle.c, min, max, H)
 
         // Timer
         const tfMs = timeframe * 1000
@@ -491,7 +499,7 @@ export const TradingChart = ({
   }, [centerOnLatest])
 
   return (
-    <div className="relative flex-1 bg-[hsl(var(--chart-bg))]">
+    <div className="relative flex-1 bg-[var(--chart-bg)] overflow-hidden">
       <div className="absolute top-3 left-3 z-20 pointer-events-auto md:hidden">
         <TimeframeMenu timeframe={timeframe} onTimeframeChange={onTimeframeChange} />
       </div>

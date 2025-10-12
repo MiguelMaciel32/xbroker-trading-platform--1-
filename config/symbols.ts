@@ -293,7 +293,7 @@ export const SIM_CONFIG = {
   seed: 123456,
   keepHistoryMs: 120 * 60 * 1000,
   view: { initialScaleX: 20, minScaleX: 4, maxScaleX: 80 },
-  defaultTimeframe: 5,
+  defaultTimeframe: 65,
   defaultSymbol: "BTC-OTC",
   symbols: SYMBOLS,
 }
