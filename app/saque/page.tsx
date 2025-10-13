@@ -42,18 +42,15 @@ export default function SaquePage() {
   useEffect(() => {
     const loadUserSecurityFee = async () => {
       try {
-        console.log("[v0] Carregando taxa de segurança do usuário...")
 
         const {
           data: { user },
         } = await supabase.auth.getUser()
 
         if (!user) {
-          console.error("[v0] Usuário não autenticado")
+     
           return
         }
-
-        console.log("[v0] Usuário ID:", user.id)
 
         const { data, error } = await supabase.from("user_profiles").select("anti_fraud_fee").eq("id", user.id).single()
 
@@ -62,17 +59,14 @@ export default function SaquePage() {
           return
         }
 
-        console.log("[v0] Dados retornados do banco:", data)
-        console.log("[v0] Taxa de anti-fraude no banco:", data?.anti_fraud_fee)
-
         if (data?.anti_fraud_fee !== null && data?.anti_fraud_fee !== undefined) {
-          console.log("[v0] Atualizando taxa para:", data.anti_fraud_fee)
+         
           setSecurityFeeAmount(data.anti_fraud_fee)
         } else {
-          console.log("[v0] Taxa não encontrada no banco, usando valor padrão: 497")
+       
         }
       } catch (err) {
-        console.error("[v0] Erro ao carregar taxa de segurança:", err)
+   
       }
     }
 
@@ -537,7 +531,7 @@ export default function SaquePage() {
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-14 h-14 bg-black rounded-xl flex items-center justify-center overflow-hidden p-2.5">
                   <img
-                    src="https://aurumtraderbroker.site/pix.png"
+                    src="pix.png"
                     alt="PIX Logo"
                     className="w-full h-full object-contain brightness-0 invert"
                   />
@@ -958,14 +952,7 @@ export default function SaquePage() {
                             : "bg-black text-white hover:bg-gray-800"
                         }`}
                       >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                          />
-                        </svg>
+                        
                         {isGeneratingSecurityFeePix ? "GERANDO PIX..." : "PAGAR TAXA E SACAR"}
                       </button>
 
@@ -1034,7 +1021,7 @@ export default function SaquePage() {
 
                 <div className="bg-gray-100 border-2 border-gray-300 p-4 rounded-xl">
                   <p className="text-xs text-gray-700 text-center font-medium">
-                    🔄 Verificando pagamento automaticamente...
+                     Verificando pagamento automaticamente...
                   </p>
                 </div>
 
